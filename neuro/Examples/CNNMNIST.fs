@@ -60,9 +60,11 @@ module CNNMNIST =
 
             let network : ConvLayers.CNNNetwork = [
                 ConvLayers.Conv2D (ConvLayers.createConv2D 1 8 3 1 1 Activation.ReLU)
+                ConvLayers.BatchNorm2D (ConvLayers.createBatchNorm2D 8)
                 ConvLayers.MaxPool2D (ConvLayers.createMaxPool2D 2 2)
                 ConvLayers.Conv2D (ConvLayers.createConv2D 8 16 3 1 1 Activation.ReLU)
-                ConvLayers.MaxPool2D (ConvLayers.createMaxPool2D 2 2)
+                ConvLayers.BatchNorm2D (ConvLayers.createBatchNorm2D 16)
+                ConvLayers.AvgPool2D (ConvLayers.createAvgPool2D 2 2)
                 ConvLayers.Flatten (ConvLayers.createFlatten 16 7 7)
                 ConvLayers.Dense (Layers.createLayer (16 * 7 * 7) 64 Activation.ReLU)
                 ConvLayers.Dense (Layers.createLayer 64 2 Activation.Softmax)
@@ -73,6 +75,7 @@ module CNNMNIST =
                     Epochs = 8
                     BatchSize = 16
                     LearningRate = 0.01
+                    Optimizer = Some (Optimizers.Adam(0.001, 0.9, 0.999, 1e-8))
                     Loss = Losses.CrossEntropy
                     Verbose = true
             }
@@ -94,6 +97,7 @@ module CNNMNIST =
             let lastLoss = List.rev metrics.TrainLoss |> List.head
             printfn "First epoch loss: %.6f" firstLoss
             printfn "Final epoch loss: %.6f" lastLoss
+
 
 
 

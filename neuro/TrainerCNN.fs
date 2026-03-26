@@ -5,6 +5,7 @@ type CNNTrainingConfig = {
     Epochs: int
     BatchSize: int
     LearningRate: float
+    Optimizer: Optimizers.Optimizer option
     Loss: Losses.LossFunction
     Verbose: bool
 }
@@ -18,6 +19,7 @@ let defaultConfig = {
     Epochs = 5
     BatchSize = 32
     LearningRate = 0.01
+    Optimizer = None
     Loss = Losses.CrossEntropy
     Verbose = true
 }
@@ -30,6 +32,12 @@ let train config (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channe
     printfn ""
 
     let mutable currentNetwork = network
+    let optimizer =
+        match config.Optimizer with
+        | Some opt -> opt
+        | None -> Optimizers.SGD config.LearningRate
+
+    let mutable optimizerState = ConvLayers.initOptimizerState currentNetwork optimizer
     let mutable trainLosses = []
 
     for epoch in 1 .. config.Epochs do
@@ -56,7 +64,9 @@ let train config (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channe
             let lossGrad = Losses.gradient config.Loss predictions batch.Labels
             let _, gradients = ConvLayers.backwardNetwork currentNetwork caches (ConvLayers.Matrix lossGrad)
 
-            currentNetwork <- ConvLayers.updateNetworkSGD config.LearningRate currentNetwork gradients
+            let newState, updated = ConvLayers.updateNetwork optimizer optimizerState gradients currentNetwork
+            optimizerState <- newState
+            currentNetwork <- updated
 
         let avgLoss = epochLoss / float batchCount
         trainLosses <- avgLoss :: trainLosses
@@ -97,4 +107,5 @@ let accuracy (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channels h
             correct <- correct + 1
 
     float correct / float samples
+
 

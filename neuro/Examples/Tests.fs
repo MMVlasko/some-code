@@ -596,8 +596,9 @@ module Tests =
         printfn "  Testing forward/backward shapes..."
         let testNetwork : ConvLayers.CNNNetwork = [
             ConvLayers.Conv2D (ConvLayers.createConv2D 1 4 3 1 1 Activation.ReLU)
-            ConvLayers.MaxPool2D (ConvLayers.createMaxPool2D 2 2)
-            ConvLayers.Flatten (ConvLayers.createFlatten 4 2 2)
+            ConvLayers.BatchNorm2D (ConvLayers.createBatchNorm2D 4)
+            ConvLayers.AvgPool2D (ConvLayers.createAvgPool2D 2 2)
+            ConvLayers.ReshapeToMatrix (ConvLayers.createReshapeToMatrix 4 2 2)
             ConvLayers.Dense (Layers.createLayer (4 * 2 * 2) 2 Activation.Softmax)
         ]
 
@@ -612,14 +613,14 @@ module Tests =
 
         assertEqual (predictions.GetLength(0)) 3 "CNN forward batch size"
         assertEqual (predictions.GetLength(1)) 2 "CNN forward class count"
-        assertEqual (List.length caches) 4 "CNN cache length"
+        assertEqual (List.length caches) 5 "CNN cache length"
 
         let labels = array2D [[1.0; 0.0]; [0.0; 1.0]; [1.0; 0.0]]
         let grad = Losses.gradient Losses.CrossEntropy predictions labels
         let _, grads = ConvLayers.backwardNetwork testNetwork caches (ConvLayers.Matrix grad)
-        assertEqual (List.length grads) 4 "CNN gradients length"
+        assertEqual (List.length grads) 5 "CNN gradients length"
 
-        printfn "  Testing CNN training quality gate >= 85%%..."
+        printfn "  Testing CNN training quality gate >= 85%% with Adam and Momentum..."
         let createSyntheticImageDataset samplesPerClass =
             let total = samplesPerClass * 2
             let features = Array2D.zeroCreate total 64
@@ -646,24 +647,42 @@ module Tests =
         let trainSet = createSyntheticImageDataset 120
         let cnn : ConvLayers.CNNNetwork = [
             ConvLayers.Conv2D (ConvLayers.createConv2D 1 4 3 1 1 Activation.ReLU)
+            ConvLayers.BatchNorm2D (ConvLayers.createBatchNorm2D 4)
             ConvLayers.MaxPool2D (ConvLayers.createMaxPool2D 2 2)
             ConvLayers.Flatten (ConvLayers.createFlatten 4 4 4)
             ConvLayers.Dense (Layers.createLayer (4 * 4 * 4) 2 Activation.Softmax)
         ]
 
-        let config = {
+        let adamConfig = {
             TrainerCNN.defaultConfig with
                 Epochs = 6
                 BatchSize = 16
                 LearningRate = 0.03
+                Optimizer = Some (Optimizers.Adam(0.01, 0.9, 0.999, 1e-8))
                 Loss = Losses.CrossEntropy
                 Verbose = false
         }
 
-        let _, trained = TrainerCNN.train config cnn trainSet 1 8 8
-        let acc = TrainerCNN.accuracy trained trainSet 1 8 8
-        assertTrue (acc >= 0.85) $"CNN accuracy should be >= 85%%, got {acc * 100.0:N2}%%"
-        printfn $"    CNN synthetic accuracy: {acc * 100.0:N2}%%"
+        let momentumConfig = {
+            TrainerCNN.defaultConfig with
+                Epochs = 6
+                BatchSize = 16
+                LearningRate = 0.03
+                Optimizer = Some (Optimizers.Momentum(0.03, 0.9))
+                Loss = Losses.CrossEntropy
+                Verbose = false
+        }
+
+        let _, trainedAdam = TrainerCNN.train adamConfig cnn trainSet 1 8 8
+        let adamAcc = TrainerCNN.accuracy trainedAdam trainSet 1 8 8
+        assertTrue (adamAcc >= 0.85) $"CNN Adam accuracy should be >= 85%%, got {adamAcc * 100.0:N2}%%"
+
+        let _, trainedMomentum = TrainerCNN.train momentumConfig cnn trainSet 1 8 8
+        let momentumAcc = TrainerCNN.accuracy trainedMomentum trainSet 1 8 8
+        assertTrue (momentumAcc >= 0.85) $"CNN Momentum accuracy should be >= 85%%, got {momentumAcc * 100.0:N2}%%"
+
+        printfn $"    CNN synthetic accuracy (Adam): {adamAcc * 100.0:N2}%%"
+        printfn $"    CNN synthetic accuracy (Momentum): {momentumAcc * 100.0:N2}%%"
         printfn "    CNN block passed!\n"
     
     let run () =

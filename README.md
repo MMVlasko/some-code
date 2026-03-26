@@ -38,13 +38,14 @@
 
 - Обучение многослойной сети как списка слоев `DenseLayer list`.
 - Поддержка слоев: `Dense` и `Dropout`.
-- Базовая поддержка сверточных архитектур: `Conv2D`, `MaxPool2D`, `Flatten`.
+- Базовая поддержка сверточных архитектур: `Conv2D`, `MaxPool2D`, `AvgPool2D`, `Flatten/Reshape`, `BatchNorm2D`.
 - Поддержка активаций: `Sigmoid`, `ReLU`, `Tanh`, `Softmax`, `Linear`.
 - Поддержка функций потерь: `MSE`, `CrossEntropy`, `BinaryCrossEntropy`.
 - Поддержка оптимизаторов: `SGD`, `Momentum`, `Adam`, `GradientClipping`.
 - Подготовка данных: нормализация, перемешивание, батчинг, split.
 - Практические примеры на реальных данных (`Iris`, `MNIST`) и игровой задаче (`TicTacToe`).
 - Отдельный пример CNN на MNIST (`Examples/CNNMNIST.fs`).
+- В CNN-тренере есть поддержка `SGD`, `Momentum`, `Adam`, `GradientClipping`.
 - В CNN-сценарии зафиксирован quality gate: `test accuracy >= 85%`.
 - Большой набор встроенных проверок в `Examples/Tests.fs`.
 
@@ -323,11 +324,16 @@ Dataset
 
 - `createConv2D` - создание сверточного слоя.
 - `createMaxPool2D` - max-pooling слой.
-- `createFlatten` - flatten слой.
+- `createAvgPool2D` - average-pooling слой.
+- `createFlatten` - flatten слой (`Tensor4D -> Matrix`).
+- `createReshapeToMatrix`, `createReshapeToTensor` - явные reshape-слои между `Tensor4D` и `Matrix`.
+- `createBatchNorm2D` - batch normalization по каналам.
 - `matrixToTensor`, `tensorToMatrix` - преобразование форматов входа/выхода.
 - `forwardLayer`, `forwardNetwork` - прямой проход.
 - `backwardLayer`, `backwardNetwork` - обратный проход.
-- `updateNetworkSGD` - SGD-обновление параметров `Conv2D` и `Dense`.
+- `initOptimizerState` - инициализация состояния оптимизатора для CNN.
+- `updateNetwork` - обновление параметров `Conv2D` / `Dense` / `BatchNorm2D` через `SGD`, `Momentum`, `Adam`, `GradientClipping`.
+- `updateNetworkSGD` - backward-compatible обертка для SGD.
 
 ### `TrainerCNN.fs`
 
@@ -335,7 +341,7 @@ Dataset
 
 Типы:
 
-- `CNNTrainingConfig` - конфиг обучения.
+- `CNNTrainingConfig` - конфиг обучения (включая выбор оптимизатора).
 - `CNNTrainingMetrics` - метрики обучения.
 
 Функции:
@@ -347,7 +353,8 @@ Dataset
 Нюансы текущей реализации:
 
 - вход в `train`/`predict` задается как `float[,]` + явный shape (`channels`, `height`, `width`);
-- обновление параметров CNN выполняется через `ConvLayers.updateNetworkSGD`.
+- если `Optimizer = None`, используется `SGD LearningRate` для обратной совместимости.
+- при `Optimizer = Some ...` поддерживаются `SGD`, `Momentum`, `Adam`, `GradientClipping`.
 
 ### `Examples/*`
 
@@ -367,7 +374,7 @@ Dataset
 
 `Examples/CNNMNIST.fs`:
 
-- `run()` - CNN-сценарий для MNIST (`Conv2D -> Pool -> Conv2D -> Pool -> Flatten -> Dense -> Softmax`) с обучением через `TrainerCNN`.
+- `run()` - CNN-сценарий для MNIST (`Conv2D -> BatchNorm -> MaxPool -> Conv2D -> BatchNorm -> AvgPool -> Flatten -> Dense -> Softmax`) с обучением через `TrainerCNN`.
 - пример использует бинарную постановку (`цифры 0 vs 1`) для стабильной и быстрой демонстрации качества.
 - число эпох увеличено (в текущем конфиге: `8`).
 - после обучения применяется quality gate: при `test accuracy < 85%` сценарий завершится ошибкой.
@@ -401,7 +408,7 @@ Dataset
 - `testActivationsAndLosses()` - проверка совместимости разных комбинаций activation/loss.
 - `testFullTrainingCycle()` - end-to-end тест учебного цикла на синтетической классификации.
 - `testGradients()` - численная проверка градиентов (finite differences).
-- `testCNNBlock()` - проверки CNN-блока: конвертация tensor/matrix, shape-checks forward/backward и accuracy-gate `>= 85%` на синтетическом датасете.
+- `testCNNBlock()` - проверки CNN-блока: конвертация tensor/matrix, shape-checks forward/backward и accuracy-gate `>= 85%` на синтетическом датасете для `Adam` и `Momentum`.
 - `run()` - запускает полный набор тестов и печатает итоговый статус.
 
 ---
@@ -449,7 +456,7 @@ Dataset
 Что делает пример:
 
 - загружает подмножество MNIST и формирует бинарный датасет (`0` vs `1`);
-- обучает компактную сверточную сеть `Conv2D -> MaxPool -> Conv2D -> MaxPool -> Flatten -> Dense -> Dense(Softmax)`;
+- обучает компактную сверточную сеть `Conv2D -> BatchNorm -> MaxPool -> Conv2D -> BatchNorm -> AvgPool -> Flatten -> Dense -> Dense(Softmax)`;
 - обучает модель дольше базовой версии (в текущем конфиге `8` эпох);
 - показывает train/test accuracy и динамику loss;
 - проверяет quality gate: `test accuracy >= 85%`.
