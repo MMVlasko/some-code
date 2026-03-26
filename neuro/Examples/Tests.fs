@@ -580,6 +580,91 @@ module Tests =
         printfn "    Gradient flow verified through 3 layers"
         
         printfn "    Gradient computation passed!\n"
+
+    let testCNNBlock () =
+        printfn "=== TEST 9: CNN Block ==="
+
+        printfn "  Testing tensor/matrix round-trip..."
+        let matrix = Array2D.init 2 16 (fun i j -> float (i * 16 + j) / 16.0)
+        let tensor = ConvLayers.matrixToTensor matrix 1 4 4
+        let matrixBack = ConvLayers.tensorToMatrix tensor
+
+        for i in 0 .. matrix.GetLength(0) - 1 do
+            for j in 0 .. matrix.GetLength(1) - 1 do
+                assertApproxEqual matrixBack[i, j] matrix[i, j] 1e-10 "Tensor/matrix round-trip"
+
+        printfn "  Testing forward/backward shapes..."
+        let testNetwork : ConvLayers.CNNNetwork = [
+            ConvLayers.Conv2D (ConvLayers.createConv2D 1 4 3 1 1 Activation.ReLU)
+            ConvLayers.MaxPool2D (ConvLayers.createMaxPool2D 2 2)
+            ConvLayers.Flatten (ConvLayers.createFlatten 4 2 2)
+            ConvLayers.Dense (Layers.createLayer (4 * 2 * 2) 2 Activation.Softmax)
+        ]
+
+        let inputBatch = Array2D.init 3 16 (fun i j -> float ((i + j) % 5) / 5.0)
+        let inputTensor = ConvLayers.matrixToTensor inputBatch 1 4 4
+        let output, caches = ConvLayers.forwardNetwork testNetwork (ConvLayers.Tensor4D inputTensor)
+
+        let predictions =
+            match output with
+            | ConvLayers.Matrix m -> m
+            | _ -> failwith "CNN output should be matrix after Flatten + Dense"
+
+        assertEqual (predictions.GetLength(0)) 3 "CNN forward batch size"
+        assertEqual (predictions.GetLength(1)) 2 "CNN forward class count"
+        assertEqual (List.length caches) 4 "CNN cache length"
+
+        let labels = array2D [[1.0; 0.0]; [0.0; 1.0]; [1.0; 0.0]]
+        let grad = Losses.gradient Losses.CrossEntropy predictions labels
+        let _, grads = ConvLayers.backwardNetwork testNetwork caches (ConvLayers.Matrix grad)
+        assertEqual (List.length grads) 4 "CNN gradients length"
+
+        printfn "  Testing CNN training quality gate >= 85%%..."
+        let createSyntheticImageDataset samplesPerClass =
+            let total = samplesPerClass * 2
+            let features = Array2D.zeroCreate total 64
+            let labels = Array2D.zeroCreate total 2
+
+            let writePixel i row col value =
+                let idx = row * 8 + col
+                features[i, idx] <- value
+
+            for i in 0 .. samplesPerClass - 1 do
+                let idx = i
+                labels[idx, 0] <- 1.0
+                for r in 0 .. 7 do
+                    writePixel idx r 3 1.0
+
+            for i in 0 .. samplesPerClass - 1 do
+                let idx = samplesPerClass + i
+                labels[idx, 1] <- 1.0
+                for c in 0 .. 7 do
+                    writePixel idx 4 c 1.0
+
+            Data.createDataset features labels
+
+        let trainSet = createSyntheticImageDataset 120
+        let cnn : ConvLayers.CNNNetwork = [
+            ConvLayers.Conv2D (ConvLayers.createConv2D 1 4 3 1 1 Activation.ReLU)
+            ConvLayers.MaxPool2D (ConvLayers.createMaxPool2D 2 2)
+            ConvLayers.Flatten (ConvLayers.createFlatten 4 4 4)
+            ConvLayers.Dense (Layers.createLayer (4 * 4 * 4) 2 Activation.Softmax)
+        ]
+
+        let config = {
+            TrainerCNN.defaultConfig with
+                Epochs = 6
+                BatchSize = 16
+                LearningRate = 0.03
+                Loss = Losses.CrossEntropy
+                Verbose = false
+        }
+
+        let _, trained = TrainerCNN.train config cnn trainSet 1 8 8
+        let acc = TrainerCNN.accuracy trained trainSet 1 8 8
+        assertTrue (acc >= 0.85) $"CNN accuracy should be >= 85%%, got {acc * 100.0:N2}%%"
+        printfn $"    CNN synthetic accuracy: {acc * 100.0:N2}%%"
+        printfn "    CNN block passed!\n"
     
     let run () =
         printfn "\n========================================"
@@ -598,6 +683,7 @@ module Tests =
             testActivationsAndLosses()
             testFullTrainingCycle()
             testGradients()
+            testCNNBlock()
             
             stopwatch.Stop()
             

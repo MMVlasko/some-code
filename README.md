@@ -1,7 +1,7 @@
 # neuro - нейросетевой фреймворк на F#
 
 Легковесный учебно-практический фреймворк для нейросетей, написанный с нуля на F# без внешних ML-библиотек.
-Проект показывает полный цикл: от подготовки данных и матричных операций до обучения, валидации и запуска реальных примеров (`Iris`, `MNIST`, `TicTacToe`).
+Проект показывает полный цикл: от подготовки данных и матричных операций до обучения, валидации и запуска реальных примеров (`Iris`, `MNIST`, `CNN MNIST`, `TicTacToe`).
 
 ---
 
@@ -37,11 +37,15 @@
 ## Ключевые возможности
 
 - Обучение многослойной сети как списка слоев `DenseLayer list`.
+- Поддержка слоев: `Dense` и `Dropout`.
+- Базовая поддержка сверточных архитектур: `Conv2D`, `MaxPool2D`, `Flatten`.
 - Поддержка активаций: `Sigmoid`, `ReLU`, `Tanh`, `Softmax`, `Linear`.
 - Поддержка функций потерь: `MSE`, `CrossEntropy`, `BinaryCrossEntropy`.
 - Поддержка оптимизаторов: `SGD`, `Momentum`, `Adam`, `GradientClipping`.
 - Подготовка данных: нормализация, перемешивание, батчинг, split.
 - Практические примеры на реальных данных (`Iris`, `MNIST`) и игровой задаче (`TicTacToe`).
+- Отдельный пример CNN на MNIST (`Examples/CNNMNIST.fs`).
+- В CNN-сценарии зафиксирован quality gate: `test accuracy >= 85%`.
 - Большой набор встроенных проверок в `Examples/Tests.fs`.
 
 ---
@@ -66,6 +70,7 @@ dotnet run --project neuro/neuro.fsproj
 - `2` - Iris Classification
 - `3` - MNIST Classification
 - `4` - TicTacToe
+- `5` - MNIST CNN (Conv2D)
 - `0` - Exit
 
 ### Важные данные
@@ -191,21 +196,26 @@ Dataset
 - `DenseLayer`:
   - `Weights: float[,]` размером `[outputSize, inputSize]`
   - `Bias: float[]` длиной `outputSize`
-  - `Activation`, `InputSize`, `OutputSize`.
+  - `Activation`, `InputSize`, `OutputSize`
+  - `Kind` (`Dense` или `Dropout`)
+  - `DropoutRate` (используется только для `Dropout`).
 - `NeuralNetwork = DenseLayer list` - сеть как список слоев.
 
 Функции:
 
 - `createLayer inputSize outputSize activation` - создает слой с Xavier-подобной инициализацией: масштаб `sqrt(6 / (in + out))`, bias = 0.
+- `createDropout size rate` - создает dropout-слой размера `size` с вероятностью зануления `rate`.
 - `forward layer input` - прямой проход слоя:
   - считает `z = input * W^T + b`
   - применяет активацию
   - возвращает `(z, output)`.
+- `forwardTraining layer input` - прямой проход в training-режиме (для `Dropout` генерирует маску и применяет inverted dropout).
 - `forwardNetwork network input` - прогоняет вход через все слои:
   - возвращает `(finalOutput, cache)`;
   - `cache` хранит `(z, output)` по слоям в порядке обратного прохода.
 - `backward layer gradOutput input z output` - backward для одного слоя:
   - строит `gradActivation` (для `Softmax` используется `gradOutput` как есть);
+  - для `Dropout` использует сохраненную маску из `z`;
   - считает `gradWeights`, `gradBias` (усредняет по batch);
   - считает `gradInput` для предыдущего слоя;
   - возвращает `(gradInput, gradWeights, gradBias)`.
@@ -298,6 +308,47 @@ Dataset
 
 Нюанс: `ValidationSplit = None` отключает валидацию полностью; в этом случае `ValLoss` остается пустым списком.
 
+### `ConvLayers.fs`
+
+Модуль слоев для сверточной сети и mixed-пайплайна (`Tensor4D` + dense-голова).
+
+Типы:
+
+- `LayerData = Tensor4D | Matrix`.
+- `Conv2DLayer`, `MaxPool2DLayer`, `FlattenLayer`.
+- `CNNLayer = Conv2D | MaxPool2D | Flatten | Dense`.
+- `CNNNetwork = CNNLayer list`.
+
+Функции:
+
+- `createConv2D` - создание сверточного слоя.
+- `createMaxPool2D` - max-pooling слой.
+- `createFlatten` - flatten слой.
+- `matrixToTensor`, `tensorToMatrix` - преобразование форматов входа/выхода.
+- `forwardLayer`, `forwardNetwork` - прямой проход.
+- `backwardLayer`, `backwardNetwork` - обратный проход.
+- `updateNetworkSGD` - SGD-обновление параметров `Conv2D` и `Dense`.
+
+### `TrainerCNN.fs`
+
+Тренировочный модуль для CNN.
+
+Типы:
+
+- `CNNTrainingConfig` - конфиг обучения.
+- `CNNTrainingMetrics` - метрики обучения.
+
+Функции:
+
+- `train` - полный training loop для mixed CNN-сети.
+- `predict` - инференс.
+- `accuracy` - точность по argmax.
+
+Нюансы текущей реализации:
+
+- вход в `train`/`predict` задается как `float[,]` + явный shape (`channels`, `height`, `width`);
+- обновление параметров CNN выполняется через `ConvLayers.updateNetworkSGD`.
+
 ### `Examples/*`
 
 Практическая часть проекта с готовыми сценариями и проверками.
@@ -313,6 +364,13 @@ Dataset
 - `loadMnistFromCsv filePath maxSamples` - загружает MNIST CSV, переводит пиксели в `[0, 1]`, кодирует one-hot метки.
 - `printDigit image width` - печатает изображение цифры в ASCII-виде для визуальной проверки.
 - `run()` - полный запуск MNIST-сценария: загрузка, обучение, оценка, разбор предсказаний и ошибок.
+
+`Examples/CNNMNIST.fs`:
+
+- `run()` - CNN-сценарий для MNIST (`Conv2D -> Pool -> Conv2D -> Pool -> Flatten -> Dense -> Softmax`) с обучением через `TrainerCNN`.
+- пример использует бинарную постановку (`цифры 0 vs 1`) для стабильной и быстрой демонстрации качества.
+- число эпох увеличено (в текущем конфиге: `8`).
+- после обучения применяется quality gate: при `test accuracy < 85%` сценарий завершится ошибкой.
 
 `Examples/TicTacToe.fs`:
 
@@ -343,6 +401,7 @@ Dataset
 - `testActivationsAndLosses()` - проверка совместимости разных комбинаций activation/loss.
 - `testFullTrainingCycle()` - end-to-end тест учебного цикла на синтетической классификации.
 - `testGradients()` - численная проверка градиентов (finite differences).
+- `testCNNBlock()` - проверки CNN-блока: конвертация tensor/matrix, shape-checks forward/backward и accuracy-gate `>= 85%` на синтетическом датасете.
 - `run()` - запускает полный набор тестов и печатает итоговый статус.
 
 ---
@@ -385,7 +444,17 @@ Dataset
 
 Это хороший пример того, как комбинировать алгоритмическую экспертную логику (Minimax) и supervised learning.
 
-### 4) Comprehensive Tests (`Examples/Tests.fs`)
+### 4) MNIST CNN (`Examples/CNNMNIST.fs`)
+
+Что делает пример:
+
+- загружает подмножество MNIST и формирует бинарный датасет (`0` vs `1`);
+- обучает компактную сверточную сеть `Conv2D -> MaxPool -> Conv2D -> MaxPool -> Flatten -> Dense -> Dense(Softmax)`;
+- обучает модель дольше базовой версии (в текущем конфиге `8` эпох);
+- показывает train/test accuracy и динамику loss;
+- проверяет quality gate: `test accuracy >= 85%`.
+
+### 5) Comprehensive Tests (`Examples/Tests.fs`)
 
 Набор тестов проверяет:
 
@@ -394,7 +463,8 @@ Dataset
 - активации и лоссы;
 - работу оптимизаторов;
 - полный цикл обучения;
-- численную проверку градиентов (сравнение analytical vs numerical).
+- численную проверку градиентов (сравнение analytical vs numerical);
+- отдельный CNN-блок (форматы данных, формы тензоров и accuracy-gate на синтетике).
 
 Этот файл можно рассматривать как «живую спецификацию» проекта.
 
@@ -411,12 +481,15 @@ some-code/
       Activation.fs
     Data.fs
     Layers.fs
+    ConvLayers.fs
     Losses.fs
     Optimizers.fs
     Trainer.fs
+    TrainerCNN.fs
     Examples/
       Iris.fs
       MNIST.fs
+      CNNMNIST.fs
       TicTacToe.fs
       Tests.fs
       Data/

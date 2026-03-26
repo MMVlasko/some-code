@@ -61,7 +61,7 @@ let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
                 match layers with
                 | [] -> (currentInput, List.rev cache)
                 | layer :: rest ->
-                    let z, output = Layers.forward layer currentInput
+                    let z, output = Layers.forwardTraining layer currentInput
                     forwardWithInputs rest output ((currentInput, z, output) :: cache)
             
             let finalOutput, layerCache = forwardWithInputs currentNetwork batch.Features []

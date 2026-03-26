@@ -13,6 +13,7 @@ let main argv =
         printfn "2. Iris Classification"
         printfn "3. MNIST Classification"
         printfn "4. TicTacToe"
+        printfn "5. MNIST CNN (Conv2D)"
         printfn "0. Exit"
         printfn ""
         printf "Your choice: "
@@ -30,6 +31,9 @@ let main argv =
             showMenu()
         | "4" -> 
             Examples.TicTacToe.run()
+            showMenu()
+        | "5" ->
+            Examples.CNNMNIST.run()
             showMenu()
         | "0" -> 
             printfn "\nGoodbye!"
