@@ -9,8 +9,10 @@ type OptimizerChoice =
     | Adam
     | GradientClipping
 type RunResult = {
+    RunId: string
     Name: string
     Params: string
+    Seed: int option
     TrainAccuracy: float
     TestAccuracy: float
     FinalLoss: float
@@ -18,9 +20,11 @@ type RunResult = {
     MemoryBytes: int64
 }
 type BenchmarkResult = {
+    RunId: string
     Scenario: string
     Optimizer: string
     LayerPreset: string
+    Seed: int option
     TrainAccuracy: float
     TestAccuracy: float
     FinalLoss: float
@@ -44,6 +48,9 @@ let buildOptimizer lr choice =
     | OptimizerChoice.Momentum -> Optimizers.Momentum (lr, 0.9)
     | OptimizerChoice.Adam -> Optimizers.Adam (lr, 0.9, 0.999, 1e-8)
     | OptimizerChoice.GradientClipping -> Optimizers.GradientClipping (lr, 0.5)
+let createRunId (prefix: string) =
+    let token = Guid.NewGuid().ToString("N").Substring(0, 8)
+    $"{prefix}-{token}"
 let ensureDirectoryForFile (filePath: string) =
     let dir = Path.GetDirectoryName(filePath)
     if String.IsNullOrWhiteSpace(dir) |> not then
@@ -59,17 +66,20 @@ let writeLeaderboardMarkdown (filePath: string) (title: string) (results: RunRes
     let sb = StringBuilder()
     sb.AppendLine($"# {title}") |> ignore
     sb.AppendLine() |> ignore
-    sb.AppendLine("| Rank | Name | Params | Train Acc | Test Acc | Final Loss | Duration (ms) | Memory (MB) |") |> ignore
-    sb.AppendLine("| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |") |> ignore
+    sb.AppendLine("| Rank | Run ID | Name | Params | Seed | Train Acc | Test Acc | Final Loss | Duration (ms) | Memory (MB) |") |> ignore
+    sb.AppendLine("| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |") |> ignore
     ranked
     |> List.iteri (fun idx row ->
         let memMb = float row.MemoryBytes / (1024.0 * 1024.0)
+        let seedText = row.Seed |> Option.map string |> Option.defaultValue "-"
         let line =
             sprintf
-                "| %d | %s | `%s` | %.2f%% | %.2f%% | %.6f | %d | %.2f |"
+                "| %d | `%s` | %s | `%s` | %s | %.2f%% | %.2f%% | %.6f | %d | %.2f |"
                 (idx + 1)
+                row.RunId
                 row.Name
                 row.Params
+                seedText
                 (row.TrainAccuracy * 100.0)
                 (row.TestAccuracy * 100.0)
                 row.FinalLoss
@@ -77,6 +87,34 @@ let writeLeaderboardMarkdown (filePath: string) (title: string) (results: RunRes
                 memMb
         sb.AppendLine(line) |> ignore)
     File.WriteAllText(filePath, sb.ToString())
+
+let private csvField (value: string) =
+    let escaped = value.Replace("\"", "\"\"")
+    $"\"{escaped}\""
+
+let writeLeaderboardCsv (filePath: string) (results: RunResult list) =
+    ensureDirectoryForFile filePath
+    let ranked = sortRunResults results
+    let rows =
+        ranked
+        |> List.mapi (fun idx row ->
+            let memMb = float row.MemoryBytes / (1024.0 * 1024.0)
+            let seedText = row.Seed |> Option.map string |> Option.defaultValue ""
+            String.concat "," [
+                string (idx + 1)
+                csvField row.RunId
+                csvField row.Name
+                csvField row.Params
+                seedText
+                sprintf "%.8f" row.TrainAccuracy
+                sprintf "%.8f" row.TestAccuracy
+                sprintf "%.8f" row.FinalLoss
+                string row.DurationMs
+                sprintf "%.8f" memMb
+            ])
+    let header = "Rank,RunId,Name,Params,Seed,TrainAccuracy,TestAccuracy,FinalLoss,DurationMs,MemoryMB"
+    File.WriteAllLines(filePath, header :: rows)
+
 let writeBenchmarkMarkdown (filePath: string) (title: string) (rows: BenchmarkResult list) =
     ensureDirectoryForFile filePath
     let ranked =
@@ -87,18 +125,21 @@ let writeBenchmarkMarkdown (filePath: string) (title: string) (rows: BenchmarkRe
     let sb = StringBuilder()
     sb.AppendLine($"# {title}") |> ignore
     sb.AppendLine() |> ignore
-    sb.AppendLine("| Rank | Scenario | Optimizer | Layer Preset | Train Acc | Test Acc | Final Loss | Duration (ms) | Memory (MB) |") |> ignore
-    sb.AppendLine("| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |") |> ignore
+    sb.AppendLine("| Rank | Run ID | Scenario | Optimizer | Layer Preset | Seed | Train Acc | Test Acc | Final Loss | Duration (ms) | Memory (MB) |") |> ignore
+    sb.AppendLine("| ---: | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |") |> ignore
     ranked
     |> List.iteri (fun idx row ->
         let memMb = float row.MemoryBytes / (1024.0 * 1024.0)
+        let seedText = row.Seed |> Option.map string |> Option.defaultValue "-"
         let line =
             sprintf
-                "| %d | %s | %s | %s | %.2f%% | %.2f%% | %.6f | %d | %.2f |"
+                "| %d | `%s` | %s | %s | %s | %s | %.2f%% | %.2f%% | %.6f | %d | %.2f |"
                 (idx + 1)
+                row.RunId
                 row.Scenario
                 row.Optimizer
                 row.LayerPreset
+                seedText
                 (row.TrainAccuracy * 100.0)
                 (row.TestAccuracy * 100.0)
                 row.FinalLoss
@@ -106,6 +147,34 @@ let writeBenchmarkMarkdown (filePath: string) (title: string) (rows: BenchmarkRe
                 memMb
         sb.AppendLine(line) |> ignore)
     File.WriteAllText(filePath, sb.ToString())
+
+let writeBenchmarkCsv (filePath: string) (rows: BenchmarkResult list) =
+    ensureDirectoryForFile filePath
+    let ranked =
+        rows
+        |> List.sortWith (fun a b ->
+            if a.TestAccuracy = b.TestAccuracy then compare a.DurationMs b.DurationMs
+            else compare b.TestAccuracy a.TestAccuracy)
+    let lines =
+        ranked
+        |> List.mapi (fun idx row ->
+            let memMb = float row.MemoryBytes / (1024.0 * 1024.0)
+            let seedText = row.Seed |> Option.map string |> Option.defaultValue ""
+            String.concat "," [
+                string (idx + 1)
+                csvField row.RunId
+                csvField row.Scenario
+                csvField row.Optimizer
+                csvField row.LayerPreset
+                seedText
+                sprintf "%.8f" row.TrainAccuracy
+                sprintf "%.8f" row.TestAccuracy
+                sprintf "%.8f" row.FinalLoss
+                string row.DurationMs
+                sprintf "%.8f" memMb
+            ])
+    let header = "Rank,RunId,Scenario,Optimizer,LayerPreset,Seed,TrainAccuracy,TestAccuracy,FinalLoss,DurationMs,MemoryMB"
+    File.WriteAllLines(filePath, header :: lines)
 let measureRun (f: unit -> 'T) =
     GC.Collect()
     GC.WaitForPendingFinalizers()

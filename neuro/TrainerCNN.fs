@@ -9,6 +9,7 @@ type CNNTrainingConfig = {
     Loss: Losses.LossFunction
     Verbose: bool
     WeightDecay: float
+    RandomSeed: int option
 }
 
 type CNNTrainingMetrics = {
@@ -24,6 +25,7 @@ let defaultConfig = {
     Loss = Losses.CrossEntropy
     Verbose = true
     WeightDecay = 0.0
+    RandomSeed = None
 }
 
 let train config (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channels height width =
@@ -43,7 +45,10 @@ let train config (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channe
     let mutable trainLosses = []
 
     for epoch in 1 .. config.Epochs do
-        let shuffled = Data.shuffle dataset
+        let shuffled =
+            match config.RandomSeed with
+            | Some seed -> Data.shuffleWithSeed (seed + epoch - 1) dataset
+            | None -> Data.shuffle dataset
         let batches = Data.batch config.BatchSize shuffled
 
         let mutable epochLoss = 0.0
@@ -134,4 +139,3 @@ let accuracy (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channels h
             correct <- correct + 1
 
     float correct / float samples
-

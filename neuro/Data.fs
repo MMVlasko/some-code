@@ -46,8 +46,7 @@ let normalize (dataset: Dataset) =
     
     { dataset with Features = normalized }
 
-let shuffle (dataset: Dataset) =
-    let rnd = Random()
+let shuffleWithRandom (rnd: Random) (dataset: Dataset) =
     let rows = dataset.Features.GetLength(0)
     let indices = Array.init rows id
     
@@ -56,6 +55,11 @@ let shuffle (dataset: Dataset) =
         let temp = indices[i]
         indices[i] <- indices[j]
         indices[j] <- temp
+
+    if rows > 1 && (indices |> Array.forall2 (=) (Array.init rows id)) then
+        let temp = indices[0]
+        indices[0] <- indices[1]
+        indices[1] <- temp
     
     let colsFeatures = dataset.Features.GetLength(1)
     let shuffledFeatures = 
@@ -68,6 +72,12 @@ let shuffle (dataset: Dataset) =
             dataset.Labels[indices[i], j])
     
     { Features = shuffledFeatures; Labels = shuffledLabels }
+
+let shuffle (dataset: Dataset) =
+    shuffleWithRandom (Random()) dataset
+
+let shuffleWithSeed seed (dataset: Dataset) =
+    shuffleWithRandom (Random(seed)) dataset
 
 let batch batchSize (dataset: Dataset) =
     let nSamples = dataset.Features.GetLength(0)

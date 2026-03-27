@@ -11,6 +11,7 @@ type TrainingConfig = {
     Verbose: bool
     ValidationSplit: float option
     WeightDecay: float
+    RandomSeed: int option
 }
 
 type TrainingMetrics = {
@@ -27,6 +28,7 @@ let defaultConfig = {
     Verbose = true
     ValidationSplit = None
     WeightDecay = 0.0
+    RandomSeed = None
 }
 
 let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
@@ -50,7 +52,10 @@ let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
     let mutable valLosses = []
     
     for epoch in 1 .. config.Epochs do
-        let shuffledTrain = Data.shuffle trainSet
+        let shuffledTrain =
+            match config.RandomSeed with
+            | Some seed -> Data.shuffleWithSeed (seed + epoch - 1) trainSet
+            | None -> Data.shuffle trainSet
         let batches = Data.batch config.BatchSize shuffledTrain
         
         let mutable epochLoss = 0.0
