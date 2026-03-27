@@ -3,6 +3,7 @@ namespace Examples
 
 open System
 open System.Diagnostics
+open System.IO
 
 module Tests =
     
@@ -684,6 +685,33 @@ module Tests =
         printfn $"    CNN synthetic accuracy (Adam): {adamAcc * 100.0:N2}%%"
         printfn $"    CNN synthetic accuracy (Momentum): {momentumAcc * 100.0:N2}%%"
         printfn "    CNN block passed!\n"
+
+    let testExperimentHelpers () =
+        printfn "=== TEST 10: Experiment Helpers ==="
+
+        printfn "  Testing confusion matrix and class metrics..."
+        let preds = [|0; 1; 2; 1; 0|]
+        let targets = [|0; 2; 2; 1; 0|]
+        let cm = Experiments.confusionMatrix 3 preds targets
+        assertEqual cm[0, 0] 2 "ConfusionMatrix true0/pred0"
+        assertEqual cm[2, 1] 1 "ConfusionMatrix true2/pred1"
+
+        let metrics = Experiments.perClassMetrics cm
+        assertEqual metrics.Length 3 "Per-class metrics length"
+        assertTrue (metrics[0].Precision > 0.5) "Class0 precision should be > 0.5"
+
+        printfn "  Testing classification markdown export..."
+        let reportPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "test_classification_report.md")
+        Experiments.writeClassificationMarkdown reportPath "Test Classification" [|"0"; "1"; "2"|] cm
+        assertTrue (File.Exists(reportPath)) "Classification report should be created"
+
+        printfn "  Testing saliency PGM export..."
+        let saliencyPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "test_saliency.pgm")
+        let saliency = Array.init (4 * 4) (fun i -> float i)
+        Experiments.writeSaliencyAsPgm saliencyPath 4 4 saliency
+        assertTrue (File.Exists(saliencyPath)) "Saliency PGM should be created"
+
+        printfn "    Experiment helpers passed!\n"
     
     let run () =
         printfn "\n========================================"
@@ -703,6 +731,7 @@ module Tests =
             testFullTrainingCycle()
             testGradients()
             testCNNBlock()
+            testExperimentHelpers()
             
             stopwatch.Stop()
             
