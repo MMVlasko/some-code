@@ -508,7 +508,8 @@ Dataset
 
 - запускает grid search + random search для Iris;
 - перебирает `learning rate`, `optimizer`, `batch size`, `hidden activation`;
-- выводит топ запусков и сохраняет leaderboard.
+- выводит топ запусков;
+- сохраняет leaderboard в `.md` и `.csv` с полями `Run ID` и `Seed`.
 
 ### 7) MNIST Regularization (`Examples/RegularizationMNIST.fs`)
 
@@ -516,14 +517,15 @@ Dataset
 
 - запускает baseline и регуляризационные абляции;
 - сравнивает `label smoothing`, `L2 weight decay`, `mixup-style`, `cutmix-style` и их комбинации;
-- строит ранжированный отчет по качеству и затратам.
+- строит ранжированные отчеты по качеству и затратам в `.md` и `.csv`.
 
 ### 8) Interpretability Tools (`Examples/Interpretability.fs`)
 
 Что делает пример:
 
 - считает confusion matrix и per-class метрики на MNIST;
-- обучает бинарный CNN (0 vs 1) и сохраняет saliency maps для тестовых примеров.
+- сохраняет markdown-отчет по классификации (`confusion matrix`, `precision/recall/F1`);
+- обучает бинарный CNN (0 vs 1) и сохраняет saliency maps (PGM) для тестовых примеров.
 
 ### 9) Benchmark Harness (`Examples/BenchmarkHarness.fs`)
 
@@ -531,7 +533,8 @@ Dataset
 
 - прогоняет матрицу экспериментов для Iris и MNIST;
 - сравнивает presets архитектур и оптимизаторов;
-- экспортирует markdown benchmark-отчет.
+- измеряет `accuracy`, `final loss`, время и delta-память;
+- экспортирует benchmark-отчеты в `.md` и `.csv` (с `Run ID` и `Seed`).
 
 ---
 
