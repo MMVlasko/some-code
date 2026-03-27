@@ -552,7 +552,8 @@ module Tests =
         printfn "  Testing gradient flow through multiple layers..."
 
         let net1 = Layers.createLayer 2 4 Activation.Tanh
-        let net2 = Layers.createLayer 4 3 Activation.ReLU
+        // Use smooth activation to avoid dead-ReLU false negatives in this flow test.
+        let net2 = Layers.createLayer 4 3 Activation.Tanh
         let net3 = Layers.createLayer 3 1 Activation.Linear
         
         let testInput = array2D [[0.3; -0.2]]
