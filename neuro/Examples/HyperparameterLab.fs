@@ -13,7 +13,7 @@ module HyperparameterLab =
             Layers.createLayer 4 16 hiddenActivation
             Layers.createLayer 16 3 Activation.Softmax
         ]
-    let private runSingle name hiddenActivation lr optimizer batchSize trainSet testSet : Experiments.RunResult =
+    let private runSingle name hiddenActivation lr optimizer batchSize seed trainSet testSet : Experiments.RunResult =
         let network = createNetwork hiddenActivation
         let config =
             {
@@ -24,15 +24,18 @@ module HyperparameterLab =
                     Loss = Losses.CrossEntropy
                     Verbose = false
                     ValidationSplit = None
+                    RandomSeed = seed
             }
         let (metrics, trainedNetwork), durationMs, memoryBytes =
             Experiments.measureRun (fun () -> Trainer.train config network trainSet)
         let trainAccuracy = Trainer.accuracy trainedNetwork trainSet
         let testAccuracy = Trainer.accuracy trainedNetwork testSet
         let finalLoss = metrics.TrainLoss |> List.last
-        ({
+        ({ 
+            RunId = Experiments.createRunId "hpl"
             Name = name
             Params = $"act={activationToName hiddenActivation}; lr={lr}; opt={optimizer}; batch={batchSize}"
+            Seed = seed
             TrainAccuracy = trainAccuracy
             TestAccuracy = testAccuracy
             FinalLoss = finalLoss
@@ -60,7 +63,8 @@ module HyperparameterLab =
                                 | "Momentum" -> Optimizers.Momentum(lr, 0.9)
                                 | _ -> Optimizers.SGD(lr)
                             let name = $"Grid-{activationToName activation}-{optName}-lr{lr}-b{batchSize}"
-                            yield runSingle name activation lr optimizer batchSize trainSet testSet
+                            let seed = Some (1000 + batchSize + int (lr * 10000.0))
+                            yield runSingle name activation lr optimizer batchSize seed trainSet testSet
         ]
     let private randomRuns trainSet testSet count =
         let rnd = Random(42)
@@ -76,7 +80,8 @@ module HyperparameterLab =
                 let optimizerChoice = optimizers[rnd.Next(optimizers.Length)]
                 let optimizer = Experiments.buildOptimizer lr optimizerChoice
                 let name = $"Random-{i}"
-                yield runSingle name activation lr optimizer batchSize trainSet testSet
+                let seed = Some (42 + i)
+                yield runSingle name activation lr optimizer batchSize seed trainSet testSet
         ]
     let run () =
         printfn "\n========================================"
@@ -103,5 +108,8 @@ module HyperparameterLab =
             |> List.iteri (fun idx row ->
                 printfn $"{idx + 1,2}. {row.Name}: test={row.TestAccuracy * 100.0:N2}%% train={row.TrainAccuracy * 100.0:N2}%% loss={row.FinalLoss:N6} time={row.DurationMs}ms")
             let reportPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "hyperparameter_leaderboard.md")
+            let csvPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "hyperparameter_leaderboard.csv")
             Experiments.writeLeaderboardMarkdown reportPath "Hyperparameter Lab Leaderboard" allRuns
+            Experiments.writeLeaderboardCsv csvPath allRuns
             printfn $"\nLeaderboard written to: {reportPath}"
+            printfn $"CSV written to: {csvPath}"

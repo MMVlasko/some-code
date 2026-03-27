@@ -418,13 +418,13 @@ Dataset
 `Examples/HyperparameterLab.fs`:
 
 - `run()` - мини-лаборатория гиперпараметров (grid + random search по activation/lr/optimizer/batch).
-- Формирует ранжированный leaderboard и сохраняет markdown-отчет в `Examples/Reports/hyperparameter_leaderboard.md`.
+- Формирует ранжированный leaderboard с `Run ID`/`Seed` и сохраняет отчеты в `Examples/Reports/hyperparameter_leaderboard.md` и `Examples/Reports/hyperparameter_leaderboard.csv`.
 
 `Examples/RegularizationMNIST.fs`:
 
 - `run()` - серия MNIST-экспериментов с регуляризацией.
 - Поддерживает `label smoothing`, `L2 weight decay`, `mixup-style` и `cutmix-style` аугментации.
-- Сохраняет сводный markdown-отчет в `Examples/Reports/regularization_leaderboard.md`.
+- Сохраняет сводные отчеты в `Examples/Reports/regularization_leaderboard.md` и `Examples/Reports/regularization_leaderboard.csv`.
 
 `Examples/Interpretability.fs`:
 
@@ -436,7 +436,7 @@ Dataset
 
 - `run()` - benchmark-матрица по сценариям (Iris/MNIST), оптимизаторам и layer-предустановкам.
 - Измеряет `accuracy`, `final loss`, время выполнения и приблизительную delta-памяти.
-- Экспортирует markdown-отчет в `Examples/Reports/benchmark_report.md`.
+- Экспортирует отчеты в `Examples/Reports/benchmark_report.md` и `Examples/Reports/benchmark_report.csv`.
 
 ---
 
@@ -570,4 +570,3 @@ some-code/
     Program.fs
     neuro.fsproj
 ```
-

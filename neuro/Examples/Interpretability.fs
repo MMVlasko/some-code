@@ -38,6 +38,7 @@ module Interpretability =
                     Loss = Losses.CrossEntropy
                     Verbose = false
                     ValidationSplit = None
+                    RandomSeed = Some 7100
             }
         let _, trained = Trainer.train cfg network trainSet
         let predictions, _ = Layers.forwardNetwork trained testSet.Features
@@ -75,6 +76,7 @@ module Interpretability =
                     Optimizer = Some (Optimizers.Adam(0.001, 0.9, 0.999, 1e-8))
                     Loss = Losses.CrossEntropy
                     Verbose = false
+                    RandomSeed = Some 7200
             }
         let _, trained = TrainerCNN.train cfg network trainSet 1 28 28
         let testPreds = TrainerCNN.predict trained testSet.Features 1 28 28

@@ -9,7 +9,7 @@ module RegularizationMNIST =
         Mixup: bool
         Cutmix: bool
     }
-    let private smoothLabels epsilon (labels: float[,]) =
+    let private applyLabelSmoothing epsilon (labels: float[,]) =
         if epsilon <= 0.0 then
             labels
         else
@@ -17,23 +17,21 @@ module RegularizationMNIST =
             let cols = labels.GetLength(1)
             let offValue = epsilon / float cols
             Array2D.init rows cols (fun i j -> (1.0 - epsilon) * labels[i, j] + offValue)
-    let private mixupDataset (dataset: Data.Dataset) =
-        let rnd = Random(42)
+    let private applyMixup (rng: Random) (dataset: Data.Dataset) =
         let rows = dataset.Features.GetLength(0)
         let featuresCols = dataset.Features.GetLength(1)
         let labelCols = dataset.Labels.GetLength(1)
         let mixedFeatures = Array2D.zeroCreate rows featuresCols
         let mixedLabels = Array2D.zeroCreate rows labelCols
         for i in 0 .. rows - 1 do
-            let j = rnd.Next(rows)
-            let lambda = 0.3 + rnd.NextDouble() * 0.4
+            let j = rng.Next(rows)
+            let lambda = 0.3 + rng.NextDouble() * 0.4
             for c in 0 .. featuresCols - 1 do
                 mixedFeatures[i, c] <- lambda * dataset.Features[i, c] + (1.0 - lambda) * dataset.Features[j, c]
             for c in 0 .. labelCols - 1 do
                 mixedLabels[i, c] <- lambda * dataset.Labels[i, c] + (1.0 - lambda) * dataset.Labels[j, c]
         Data.createDataset mixedFeatures mixedLabels
-    let private cutmixDataset28x28 (dataset: Data.Dataset) =
-        let rnd = Random(42)
+    let private applyCutmix28x28 (rng: Random) (dataset: Data.Dataset) =
         let rows = dataset.Features.GetLength(0)
         let featuresCols = dataset.Features.GetLength(1)
         let labelCols = dataset.Labels.GetLength(1)
@@ -43,13 +41,13 @@ module RegularizationMNIST =
         let mixedLabels = Array2D.init rows labelCols (fun i j -> dataset.Labels[i, j])
         let patch (row: int) (col: int) = row * 28 + col
         for i in 0 .. rows - 1 do
-            let j = rnd.Next(rows)
-            let lambda = 0.3 + rnd.NextDouble() * 0.4
+            let j = rng.Next(rows)
+            let lambda = 0.3 + rng.NextDouble() * 0.4
             let cutRatio = sqrt (1.0 - lambda)
             let cutW = max 1 (int (28.0 * cutRatio))
             let cutH = max 1 (int (28.0 * cutRatio))
-            let cx = rnd.Next(28)
-            let cy = rnd.Next(28)
+            let cx = rng.Next(28)
+            let cy = rng.Next(28)
             let x1 = max 0 (cx - cutW / 2)
             let x2 = min 27 (cx + cutW / 2)
             let y1 = max 0 (cy - cutH / 2)
@@ -62,13 +60,19 @@ module RegularizationMNIST =
             for c in 0 .. labelCols - 1 do
                 mixedLabels[i, c] <- lamAdjusted * dataset.Labels[i, c] + (1.0 - lamAdjusted) * dataset.Labels[j, c]
         Data.createDataset mixedFeatures mixedLabels
-    let private buildTrainDataset (baseTrain: Data.Dataset) (cfg: RegConfig) =
-        let labels = smoothLabels cfg.LabelSmoothing baseTrain.Labels
+    let private buildTrainDataset (baseTrain: Data.Dataset) (cfg: RegConfig) (seed: int option) =
+        let mixupSeed = seed |> Option.defaultValue 42
+        let cutmixSeed = mixupSeed + 97
+        let labels = applyLabelSmoothing cfg.LabelSmoothing baseTrain.Labels
         let initial = Data.createDataset baseTrain.Features labels
-        let withMixup = if cfg.Mixup then mixupDataset initial else initial
-        if cfg.Cutmix then cutmixDataset28x28 withMixup else withMixup
-    let private runSingle (cfg: RegConfig) (trainSet: Data.Dataset) (testSet: Data.Dataset) : Experiments.RunResult =
-        let transformedTrain = buildTrainDataset trainSet cfg
+        let withMixup =
+            if cfg.Mixup then applyMixup (Random(mixupSeed)) initial else initial
+        if cfg.Cutmix then applyCutmix28x28 (Random(cutmixSeed)) withMixup else withMixup
+
+    let internal buildTrainDatasetForTesting (baseTrain: Data.Dataset) (cfg: RegConfig) =
+        buildTrainDataset baseTrain cfg (Some 42)
+    let private runSingle (cfg: RegConfig) (seed: int option) (trainSet: Data.Dataset) (testSet: Data.Dataset) : Experiments.RunResult =
+        let transformedTrain = buildTrainDataset trainSet cfg seed
         let network =
             [
                 Layers.createLayer 784 128 Activation.ReLU
@@ -85,12 +89,15 @@ module RegularizationMNIST =
                     Verbose = false
                     ValidationSplit = None
                     WeightDecay = cfg.WeightDecay
+                    RandomSeed = seed
             }
         let (metrics, trained), durationMs, memoryBytes =
             Experiments.measureRun (fun () -> Trainer.train trainingConfig network transformedTrain)
         ({
+            RunId = Experiments.createRunId "reg"
             Name = cfg.Name
             Params = $"smooth={cfg.LabelSmoothing}; wd={cfg.WeightDecay}; mixup={cfg.Mixup}; cutmix={cfg.Cutmix}"
+            Seed = seed
             TrainAccuracy = Trainer.accuracy trained transformedTrain
             TestAccuracy = Trainer.accuracy trained testSet
             FinalLoss = metrics.TrainLoss |> List.last
@@ -119,14 +126,18 @@ module RegularizationMNIST =
                 ]
             let results =
                 configs
-                |> List.map (fun cfg ->
+                |> List.mapi (fun idx cfg ->
                     printfn $"Running {cfg.Name}..."
-                    runSingle cfg trainSet testSet)
+                    let seed = Some (3000 + idx)
+                    runSingle cfg seed trainSet testSet)
             let ranked = Experiments.sortRunResults results
             printfn "\nRegularization ranking:"
             ranked
             |> List.iteri (fun idx row ->
                 printfn $"{idx + 1,2}. {row.Name}: test={row.TestAccuracy * 100.0:N2}%% train={row.TrainAccuracy * 100.0:N2}%%")
             let reportPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "regularization_leaderboard.md")
+            let csvPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "regularization_leaderboard.csv")
             Experiments.writeLeaderboardMarkdown reportPath "MNIST Regularization Leaderboard" results
+            Experiments.writeLeaderboardCsv csvPath results
             printfn $"\nReport written to: {reportPath}"
+            printfn $"CSV written to: {csvPath}"

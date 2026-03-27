@@ -21,8 +21,9 @@ module BenchmarkHarness =
                     ("Adam", Optimizers.Adam(0.001, 0.9, 0.999, 1e-8))
                 ]
             [
-                for layerPresetName, network in layerPresets do
-                    for optimizerName, optimizer in optimizers do
+                for layerIdx, (layerPresetName, network) in layerPresets |> List.indexed do
+                    for optIdx, (optimizerName, optimizer) in optimizers |> List.indexed do
+                        let seed = Some (5000 + layerIdx * 100 + optIdx)
                         let cfg =
                             {
                                 Trainer.defaultConfig with
@@ -31,14 +32,17 @@ module BenchmarkHarness =
                                     Optimizer = optimizer
                                     Loss = Losses.CrossEntropy
                                     Verbose = false
+                                    RandomSeed = seed
                             }
                         let (metrics, trained), durationMs, memoryBytes =
                             Experiments.measureRun (fun () -> Trainer.train cfg network trainSet)
                         yield
                             ({
+                                RunId = Experiments.createRunId "bench"
                                 Scenario = "Iris"
                                 Optimizer = optimizerName
                                 LayerPreset = layerPresetName
+                                Seed = seed
                                 TrainAccuracy = Trainer.accuracy trained trainSet
                                 TestAccuracy = Trainer.accuracy trained testSet
                                 FinalLoss = metrics.TrainLoss |> List.last
@@ -66,8 +70,9 @@ module BenchmarkHarness =
                     ("Adam", Optimizers.Adam(0.001, 0.9, 0.999, 1e-8))
                 ]
             [
-                for layerPresetName, network in layerPresets do
-                    for optimizerName, optimizer in optimizers do
+                for layerIdx, (layerPresetName, network) in layerPresets |> List.indexed do
+                    for optIdx, (optimizerName, optimizer) in optimizers |> List.indexed do
+                        let seed = Some (6000 + layerIdx * 100 + optIdx)
                         let cfg =
                             {
                                 Trainer.defaultConfig with
@@ -76,14 +81,17 @@ module BenchmarkHarness =
                                     Optimizer = optimizer
                                     Loss = Losses.CrossEntropy
                                     Verbose = false
+                                    RandomSeed = seed
                             }
                         let (metrics, trained), durationMs, memoryBytes =
                             Experiments.measureRun (fun () -> Trainer.train cfg network trainSet)
                         yield
                             ({
+                                RunId = Experiments.createRunId "bench"
                                 Scenario = "MNIST"
                                 Optimizer = optimizerName
                                 LayerPreset = layerPresetName
+                                Seed = seed
                                 TrainAccuracy = Trainer.accuracy trained trainSet
                                 TestAccuracy = Trainer.accuracy trained testSet
                                 FinalLoss = metrics.TrainLoss |> List.last
@@ -116,5 +124,8 @@ module BenchmarkHarness =
             |> List.iteri (fun idx row ->
                 printfn $"{idx + 1,2}. {row.Scenario}-{row.LayerPreset}-{row.Optimizer}: test={row.TestAccuracy * 100.0:N2}%% time={row.DurationMs}ms")
             let reportPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "benchmark_report.md")
+            let csvPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "benchmark_report.csv")
             Experiments.writeBenchmarkMarkdown reportPath "Benchmark Harness Report" allRows
+            Experiments.writeBenchmarkCsv csvPath allRows
             printfn $"\nBenchmark report written to: {reportPath}"
+            printfn $"Benchmark CSV written to: {csvPath}"
