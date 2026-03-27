@@ -10,6 +10,7 @@ type TrainingConfig = {
     Loss: Losses.LossFunction
     Verbose: bool
     ValidationSplit: float option
+    WeightDecay: float
 }
 
 type TrainingMetrics = {
@@ -25,6 +26,7 @@ let defaultConfig = {
     Loss = Losses.MSE
     Verbose = true
     ValidationSplit = None
+    WeightDecay = 0.0
 }
 
 let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
@@ -87,9 +89,20 @@ let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
             
             let gradientsReversed = backwardPass reversedNetwork reversedCache lossGrad []
             let gradients = List.rev gradientsReversed
+
+            let gradientsWithDecay =
+                if config.WeightDecay <= 0.0 then
+                    gradients
+                else
+                    List.map2 (fun (layer: Layers.DenseLayer) ((gradW: float[,]), (gradB: float[])) ->
+                        let decayedW =
+                            Array2D.init (gradW.GetLength(0)) (gradW.GetLength(1)) (fun i j ->
+                                gradW[i, j] + config.WeightDecay * layer.Weights[i, j])
+                        decayedW, gradB
+                    ) currentNetwork gradients
             
             let newState, updatedNetwork = 
-                Optimizers.update config.Optimizer optimizerState gradients currentNetwork
+                Optimizers.update config.Optimizer optimizerState gradientsWithDecay currentNetwork
             optimizerState <- newState
             currentNetwork <- updatedNetwork
         

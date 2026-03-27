@@ -8,6 +8,7 @@ type CNNTrainingConfig = {
     Optimizer: Optimizers.Optimizer option
     Loss: Losses.LossFunction
     Verbose: bool
+    WeightDecay: float
 }
 
 type CNNTrainingMetrics = {
@@ -22,6 +23,7 @@ let defaultConfig = {
     Optimizer = None
     Loss = Losses.CrossEntropy
     Verbose = true
+    WeightDecay = 0.0
 }
 
 let train config (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channels height width =
@@ -64,7 +66,32 @@ let train config (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channe
             let lossGrad = Losses.gradient config.Loss predictions batch.Labels
             let _, gradients = ConvLayers.backwardNetwork currentNetwork caches (ConvLayers.Matrix lossGrad)
 
-            let newState, updated = ConvLayers.updateNetwork optimizer optimizerState gradients currentNetwork
+            let gradientsWithDecay =
+                if config.WeightDecay <= 0.0 then
+                    gradients
+                else
+                    List.map2 (fun layer grad ->
+                        match layer, grad with
+                        | ConvLayers.Conv2D conv, ConvLayers.ConvGrad (gradFilters, gradBias) ->
+                            let decayedFilters =
+                                Array4D.init
+                                    (gradFilters.GetLength(0))
+                                    (gradFilters.GetLength(1))
+                                    (gradFilters.GetLength(2))
+                                    (gradFilters.GetLength(3))
+                                    (fun i j k l -> gradFilters[i, j, k, l] + config.WeightDecay * conv.Filters[i, j, k, l])
+                            ConvLayers.ConvGrad (decayedFilters, gradBias)
+                        | ConvLayers.Dense dense, ConvLayers.DenseGrad (gradW, gradB) ->
+                            let decayedW =
+                                Array2D.init
+                                    (gradW.GetLength(0))
+                                    (gradW.GetLength(1))
+                                    (fun i j -> gradW[i, j] + config.WeightDecay * dense.Weights[i, j])
+                            ConvLayers.DenseGrad (decayedW, gradB)
+                        | _ -> grad
+                    ) currentNetwork gradients
+
+            let newState, updated = ConvLayers.updateNetwork optimizer optimizerState gradientsWithDecay currentNetwork
             optimizerState <- newState
             currentNetwork <- updated
 
@@ -107,5 +134,4 @@ let accuracy (network: ConvLayers.CNNNetwork) (dataset: Data.Dataset) channels h
             correct <- correct + 1
 
     float correct / float samples
-
 

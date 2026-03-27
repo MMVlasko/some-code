@@ -16,9 +16,14 @@
         <Compile Include="Trainer.fs" />
         <Compile Include="ConvLayers.fs" />
         <Compile Include="TrainerCNN.fs" />
+        <Compile Include="Experiments.fs" />
         <Compile Include="Examples/Iris.fs" />
         <Compile Include="Examples/MNIST.fs" />
         <Compile Include="Examples/CNNMNIST.fs" />
+        <Compile Include="Examples/HyperparameterLab.fs" />
+        <Compile Include="Examples/RegularizationMNIST.fs" />
+        <Compile Include="Examples/Interpretability.fs" />
+        <Compile Include="Examples/BenchmarkHarness.fs" />
         <Compile Include="Examples\Tests.fs" />
         <Content Include="Examples\Data\Iris.csv" />
         <Content Include="Examples\Data\mnist_test.csv" />
