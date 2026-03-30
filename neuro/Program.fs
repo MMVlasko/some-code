@@ -14,6 +14,10 @@ let main argv =
         printfn "3. MNIST Classification"
         printfn "4. TicTacToe"
         printfn "5. MNIST CNN (Conv2D)"
+        printfn "6. Hyperparameter Lab"
+        printfn "7. MNIST Regularization Experiments"
+        printfn "8. Interpretability Tools"
+        printfn "9. Benchmark Harness"
         printfn "0. Exit"
         printfn ""
         printf "Your choice: "
@@ -34,6 +38,18 @@ let main argv =
             showMenu()
         | "5" ->
             Examples.CNNMNIST.run()
+            showMenu()
+        | "6" ->
+            Examples.HyperparameterLab.run()
+            showMenu()
+        | "7" ->
+            Examples.RegularizationMNIST.run()
+            showMenu()
+        | "8" ->
+            Examples.Interpretability.run()
+            showMenu()
+        | "9" ->
+            Examples.BenchmarkHarness.run()
             showMenu()
         | "0" -> 
             printfn "\nGoodbye!"

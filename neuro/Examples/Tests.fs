@@ -3,6 +3,7 @@ namespace Examples
 
 open System
 open System.Diagnostics
+open System.IO
 
 module Tests =
     
@@ -510,7 +511,8 @@ module Tests =
         
         printfn "  Testing multi-layer network gradients..."
         
-        let layer1 = Layers.createLayer 2 3 Activation.ReLU
+        // Use smooth activation to avoid dead-ReLU false negatives in this gradient-shape test.
+        let layer1 = Layers.createLayer 2 3 Activation.Tanh
         let layer2 = Layers.createLayer 3 1 Activation.Linear
         
         let multiInput = array2D [[0.5; -0.5]]
@@ -551,7 +553,8 @@ module Tests =
         printfn "  Testing gradient flow through multiple layers..."
 
         let net1 = Layers.createLayer 2 4 Activation.Tanh
-        let net2 = Layers.createLayer 4 3 Activation.ReLU
+        // Use smooth activation to avoid dead-ReLU false negatives in this flow test.
+        let net2 = Layers.createLayer 4 3 Activation.Tanh
         let net3 = Layers.createLayer 3 1 Activation.Linear
         
         let testInput = array2D [[0.3; -0.2]]
@@ -684,6 +687,89 @@ module Tests =
         printfn $"    CNN synthetic accuracy (Adam): {adamAcc * 100.0:N2}%%"
         printfn $"    CNN synthetic accuracy (Momentum): {momentumAcc * 100.0:N2}%%"
         printfn "    CNN block passed!\n"
+
+    let testExperimentHelpers () =
+        printfn "=== TEST 10: Experiment Helpers ==="
+
+        printfn "  Testing confusion matrix and class metrics..."
+        let preds = [|0; 1; 2; 1; 0|]
+        let targets = [|0; 2; 2; 1; 0|]
+        let cm = Experiments.confusionMatrix 3 preds targets
+        assertEqual cm[0, 0] 2 "ConfusionMatrix true0/pred0"
+        assertEqual cm[2, 1] 1 "ConfusionMatrix true2/pred1"
+
+        let metrics = Experiments.perClassMetrics cm
+        assertEqual metrics.Length 3 "Per-class metrics length"
+        assertTrue (metrics[0].Precision > 0.5) "Class0 precision should be > 0.5"
+
+        printfn "  Testing classification markdown export..."
+        let reportPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "test_classification_report.md")
+        Experiments.writeClassificationMarkdown reportPath "Test Classification" [|"0"; "1"; "2"|] cm
+        assertTrue (File.Exists(reportPath)) "Classification report should be created"
+
+        printfn "  Testing saliency PGM export..."
+        let saliencyPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "test_saliency.pgm")
+        let saliency = Array.init (4 * 4) (fun i -> float i)
+        Experiments.writeSaliencyAsPgm saliencyPath 4 4 saliency
+        assertTrue (File.Exists(saliencyPath)) "Saliency PGM should be created"
+
+        printfn "    Experiment helpers passed!\n"
+
+    let testRegularizationTransforms () =
+        printfn "=== TEST 11: Regularization Transforms ==="
+
+        let rows = 4
+        let features = Array2D.init rows 784 (fun i j -> float (i * 1000 + j))
+        let labels =
+            Array2D.init rows 10 (fun i j ->
+                if j = (i % 10) then 1.0 else 0.0)
+
+        let dataset = Data.createDataset features labels
+
+        printfn "  Testing label smoothing..."
+        let smoothingCfg: RegularizationMNIST.RegConfig =
+            { Name = "smooth"; LabelSmoothing = 0.1; WeightDecay = 0.0; Mixup = false; Cutmix = false }
+        let smoothedDs = RegularizationMNIST.buildTrainDatasetForTesting dataset smoothingCfg
+        let smoothed = smoothedDs.Labels
+        for i in 0 .. rows - 1 do
+            let rowSum = [|0 .. 9|] |> Array.sumBy (fun j -> smoothed[i, j])
+            assertApproxEqual rowSum 1.0 1e-10 "Smoothed row should sum to 1"
+
+        printfn "  Testing mixup transform..."
+        let mixupCfg: RegularizationMNIST.RegConfig =
+            { Name = "mixup"; LabelSmoothing = 0.0; WeightDecay = 0.0; Mixup = true; Cutmix = false }
+        let mixed = RegularizationMNIST.buildTrainDatasetForTesting dataset mixupCfg
+        assertEqual (mixed.Features.GetLength(0)) rows "Mixup rows"
+        assertEqual (mixed.Features.GetLength(1)) 784 "Mixup cols"
+        for i in 0 .. rows - 1 do
+            let rowSum = [|0 .. 9|] |> Array.sumBy (fun j -> mixed.Labels[i, j])
+            assertApproxEqual rowSum 1.0 1e-10 "Mixup label row should sum to 1"
+
+        let mixupChanged =
+            [ for i in 0 .. rows - 1 do
+                for j in 0 .. 20 do
+                    yield abs (mixed.Features[i, j] - dataset.Features[i, j]) ]
+            |> List.exists (fun d -> d > 1e-10)
+        assertTrue mixupChanged "Mixup should modify at least some feature values"
+
+        printfn "  Testing cutmix transform..."
+        let cutmixCfg: RegularizationMNIST.RegConfig =
+            { Name = "cutmix"; LabelSmoothing = 0.0; WeightDecay = 0.0; Mixup = false; Cutmix = true }
+        let cutmixed = RegularizationMNIST.buildTrainDatasetForTesting dataset cutmixCfg
+        assertEqual (cutmixed.Features.GetLength(0)) rows "Cutmix rows"
+        assertEqual (cutmixed.Features.GetLength(1)) 784 "Cutmix cols"
+        for i in 0 .. rows - 1 do
+            let rowSum = [|0 .. 9|] |> Array.sumBy (fun j -> cutmixed.Labels[i, j])
+            assertApproxEqual rowSum 1.0 1e-10 "Cutmix label row should sum to 1"
+
+        let cutmixChanged =
+            [ for i in 0 .. rows - 1 do
+                for j in 0 .. 783 do
+                    yield abs (cutmixed.Features[i, j] - dataset.Features[i, j]) ]
+            |> List.exists (fun d -> d > 1e-10)
+        assertTrue cutmixChanged "Cutmix should copy at least one patch into features"
+
+        printfn "    Regularization transforms passed!\n"
     
     let run () =
         printfn "\n========================================"
@@ -703,6 +789,8 @@ module Tests =
             testFullTrainingCycle()
             testGradients()
             testCNNBlock()
+            testExperimentHelpers()
+            testRegularizationTransforms()
             
             stopwatch.Stop()
             

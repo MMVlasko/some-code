@@ -72,6 +72,10 @@ dotnet run --project neuro/neuro.fsproj
 - `3` - MNIST Classification
 - `4` - TicTacToe
 - `5` - MNIST CNN (Conv2D)
+- `6` - Hyperparameter Lab
+- `7` - MNIST Regularization Experiments
+- `8` - Interpretability Tools
+- `9` - Benchmark Harness
 - `0` - Exit
 
 ### Важные данные
@@ -411,6 +415,29 @@ Dataset
 - `testCNNBlock()` - проверки CNN-блока: конвертация tensor/matrix, shape-checks forward/backward и accuracy-gate `>= 85%` на синтетическом датасете для `Adam` и `Momentum`.
 - `run()` - запускает полный набор тестов и печатает итоговый статус.
 
+`Examples/HyperparameterLab.fs`:
+
+- `run()` - мини-лаборатория гиперпараметров (grid + random search по activation/lr/optimizer/batch).
+- Формирует ранжированный leaderboard с `Run ID`/`Seed` и сохраняет отчеты в `Examples/Reports/hyperparameter_leaderboard.md` и `Examples/Reports/hyperparameter_leaderboard.csv`.
+
+`Examples/RegularizationMNIST.fs`:
+
+- `run()` - серия MNIST-экспериментов с регуляризацией.
+- Поддерживает `label smoothing`, `L2 weight decay`, `mixup-style` и `cutmix-style` аугментации.
+- Сохраняет сводные отчеты в `Examples/Reports/regularization_leaderboard.md` и `Examples/Reports/regularization_leaderboard.csv`.
+
+`Examples/Interpretability.fs`:
+
+- `run()` - инструменты интерпретируемости.
+- Строит confusion matrix + per-class precision/recall/F1 для dense MNIST.
+- Генерирует saliency maps (PGM) для CNN MNIST и сохраняет артефакты в `Examples/Reports/saliency/`.
+
+`Examples/BenchmarkHarness.fs`:
+
+- `run()` - benchmark-матрица по сценариям (Iris/MNIST), оптимизаторам и layer-предустановкам.
+- Измеряет `accuracy`, `final loss`, время выполнения и приблизительную delta-памяти.
+- Экспортирует отчеты в `Examples/Reports/benchmark_report.md` и `Examples/Reports/benchmark_report.csv`.
+
 ---
 
 ## Примеры
@@ -475,6 +502,40 @@ Dataset
 
 Этот файл можно рассматривать как «живую спецификацию» проекта.
 
+### 6) Hyperparameter Lab (`Examples/HyperparameterLab.fs`)
+
+Что делает пример:
+
+- запускает grid search + random search для Iris;
+- перебирает `learning rate`, `optimizer`, `batch size`, `hidden activation`;
+- выводит топ запусков;
+- сохраняет leaderboard в `.md` и `.csv` с полями `Run ID` и `Seed`.
+
+### 7) MNIST Regularization (`Examples/RegularizationMNIST.fs`)
+
+Что делает пример:
+
+- запускает baseline и регуляризационные абляции;
+- сравнивает `label smoothing`, `L2 weight decay`, `mixup-style`, `cutmix-style` и их комбинации;
+- строит ранжированные отчеты по качеству и затратам в `.md` и `.csv`.
+
+### 8) Interpretability Tools (`Examples/Interpretability.fs`)
+
+Что делает пример:
+
+- считает confusion matrix и per-class метрики на MNIST;
+- сохраняет markdown-отчет по классификации (`confusion matrix`, `precision/recall/F1`);
+- обучает бинарный CNN (0 vs 1) и сохраняет saliency maps (PGM) для тестовых примеров.
+
+### 9) Benchmark Harness (`Examples/BenchmarkHarness.fs`)
+
+Что делает пример:
+
+- прогоняет матрицу экспериментов для Iris и MNIST;
+- сравнивает presets архитектур и оптимизаторов;
+- измеряет `accuracy`, `final loss`, время и delta-память;
+- экспортирует benchmark-отчеты в `.md` и `.csv` (с `Run ID` и `Seed`).
+
 ---
 
 ## Структура проекта
@@ -491,20 +552,24 @@ some-code/
     ConvLayers.fs
     Losses.fs
     Optimizers.fs
-    Trainer.fs
-    TrainerCNN.fs
-    Examples/
-      Iris.fs
-      MNIST.fs
-      CNNMNIST.fs
-      TicTacToe.fs
-      Tests.fs
-      Data/
-        Iris.csv
-        mnist_train.csv
+      Trainer.fs
+      TrainerCNN.fs
+      Experiments.fs
+      Examples/
+        Iris.fs
+        MNIST.fs
+        CNNMNIST.fs
+        HyperparameterLab.fs
+        RegularizationMNIST.fs
+        Interpretability.fs
+        BenchmarkHarness.fs
+        TicTacToe.fs
+        Tests.fs
+        Reports/
+        Data/
+          Iris.csv
+          mnist_train.csv
         mnist_test.csv
     Program.fs
     neuro.fsproj
 ```
-
-
