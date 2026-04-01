@@ -10,6 +10,13 @@ module TicTacToe =
         | O
     
     type Board = Cell array array
+
+    type TrainingResult = {
+        Network: Layers.NeuralNetwork
+        Metrics: Trainer.TrainingMetrics
+        TrainAccuracy: float
+        TestAccuracy: float
+    }
     
     let createEmptyBoard () : Board =
         Array.init 3 (fun _ -> Array.init 3 (fun _ -> Empty))
@@ -136,7 +143,7 @@ module TicTacToe =
         
         generate (createEmptyBoard ()) []
     
-    let createDatasetForPlayer (player: Cell) =
+    let private createDatasetForPlayerWithOutput (player: Cell) (showSamples: bool) =
         let allPositions = 
             generatePositionsForPlayer player
             |> List.distinctBy (fun (board,_) -> 
@@ -144,15 +151,16 @@ module TicTacToe =
                 features[0,0..] |> Seq.map int |> Seq.toArray)
         
         let symbol = if player = X then "X" else "O"
-        printfn $"Generated {List.length allPositions} unique positions for player {symbol}"
-       
-        printfn "\n=== SAMPLE TRAINING POSITIONS ==="
-        for i in 0 .. min 4 (List.length allPositions - 1) do
-            let board, (row, col) = allPositions[i]
-            printfn $"Position {i+1}:"
-            printfn $"{boardToString board}"
-            printfn $"Optimal move for {symbol}: row={row}, col={col}"
-            printfn ""
+        if showSamples then
+            printfn $"Generated {List.length allPositions} unique positions for player {symbol}"
+           
+            printfn "\n=== SAMPLE TRAINING POSITIONS ==="
+            for i in 0 .. min 4 (List.length allPositions - 1) do
+                let board, (row, col) = allPositions[i]
+                printfn $"Position {i+1}:"
+                printfn $"{boardToString board}"
+                printfn $"Optimal move for {symbol}: row={row}, col={col}"
+                printfn ""
         
         let features = Array2D.zeroCreate (List.length allPositions) 27
         let labels = Array2D.zeroCreate (List.length allPositions) 9
@@ -167,7 +175,47 @@ module TicTacToe =
             labels[i, moveIndex] <- 1.0)
         
         Data.createDataset features labels
-    
+
+    let createDatasetForPlayer (player: Cell) =
+        createDatasetForPlayerWithOutput player true
+
+    let createDatasetForPlayerSilent (player: Cell) =
+        createDatasetForPlayerWithOutput player false
+
+    let createTrainingNetwork () =
+        [
+            Layers.createLayer 27 128 Activation.ReLU
+            Layers.createLayer 128 64 Activation.ReLU
+            Layers.createLayer 64 9 Activation.Softmax
+        ]
+
+    let trainModel (epochs: int) (onEpochEnd: (Trainer.EpochProgress -> unit) option) (verbose: bool) =
+        let dataset = createDatasetForPlayerSilent O
+        let trainSet, testSet = Data.split 0.9 dataset
+        let network = createTrainingNetwork ()
+
+        let config = {
+            Trainer.defaultConfig with
+                Epochs = epochs
+                BatchSize = 64
+                Optimizer = Optimizers.Adam(0.001, 0.9, 0.999, 1e-8)
+                Loss = Losses.CrossEntropy
+                Verbose = verbose
+                OnEpochEnd = onEpochEnd
+                ValidationSplit = None
+        }
+
+        let metrics, trainedNetwork = Trainer.train config network trainSet
+        let trainAccuracy = Trainer.accuracy trainedNetwork trainSet
+        let testAccuracy = Trainer.accuracy trainedNetwork testSet
+
+        {
+            Network = trainedNetwork
+            Metrics = metrics
+            TrainAccuracy = trainAccuracy
+            TestAccuracy = testAccuracy
+        }
+
     let trainAI (epochs: int) =
         printfn "\n========================================"
         printfn "TIC-TAC-TOE AI TRAINING"
@@ -183,11 +231,7 @@ module TicTacToe =
         printfn $"Output classes: 9 (possible moves)"
         printfn ""
         
-        let network = [
-            Layers.createLayer 27 128 Activation.ReLU
-            Layers.createLayer 128 64 Activation.ReLU
-            Layers.createLayer 64 9 Activation.Softmax
-        ]
+        let network = createTrainingNetwork ()
         
         printfn "=== NETWORK ARCHITECTURE ==="
         printfn "  Input: 27 (one-hot: empty, X, O for each of 9 cells)"
@@ -198,16 +242,6 @@ module TicTacToe =
         printfn $"  Total parameters: {totalParams}"
         printfn ""
         
-        let config = {
-            Trainer.defaultConfig with
-                Epochs = epochs
-                BatchSize = 64
-                Optimizer = Optimizers.Adam(0.001, 0.9, 0.999, 1e-8)
-                Loss = Losses.CrossEntropy
-                Verbose = true
-                ValidationSplit = None
-        }
-        
         printfn "=== TRAINING CONFIGURATION ==="
         printfn "  Optimizer: Adam (lr=0.001)"
         printfn "  Loss: CrossEntropy"
@@ -216,23 +250,20 @@ module TicTacToe =
         printfn ""
         printfn "Starting training...\n"
         
-        let metrics, trainedNetwork = Trainer.train config network trainSet
-        
-        let trainAccuracy = Trainer.accuracy trainedNetwork trainSet
-        let testAccuracy = Trainer.accuracy trainedNetwork testSet
+        let result = trainModel epochs None true
         
         printfn "\n=== FINAL RESULTS ==="
-        printfn $"Train Accuracy: {trainAccuracy * 100.0:N2}%%"
-        printfn $"Test Accuracy: {testAccuracy * 100.0:N2}%%"
+        printfn $"Train Accuracy: {result.TrainAccuracy * 100.0:N2}%%"
+        printfn $"Test Accuracy: {result.TestAccuracy * 100.0:N2}%%"
         
-        let finalLoss = List.rev metrics.TrainLoss |> List.head
-        let firstLoss = List.head metrics.TrainLoss
+        let finalLoss = List.rev result.Metrics.TrainLoss |> List.head
+        let firstLoss = List.head result.Metrics.TrainLoss
         
         printfn "\n=== LOSS PROGRESSION ==="
         printfn $"  First epoch loss: {firstLoss:N6}"
         printfn $"  Final epoch loss: {finalLoss:N6}"
         
-        trainedNetwork
+        result.Network
     
     let getNetworkMove (network: Layers.NeuralNetwork) (board: Board) =
         let features = boardToFeatures board

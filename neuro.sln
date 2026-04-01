@@ -1,6 +1,10 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "neuro.Core", "neuro.Core\neuro.Core.fsproj", "{C6AFC591-D5C9-4567-8232-536D5D6D2EFD}"
+EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "neuro", "neuro\neuro.fsproj", "{40BA8202-606E-48E4-B43D-986C8DE49C13}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "neuro.Mobile", "neuro.Mobile\neuro.Mobile.csproj", "{6C10CE17-709F-43A6-B74A-1762AC20EDDE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -8,9 +12,17 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C6AFC591-D5C9-4567-8232-536D5D6D2EFD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C6AFC591-D5C9-4567-8232-536D5D6D2EFD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C6AFC591-D5C9-4567-8232-536D5D6D2EFD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C6AFC591-D5C9-4567-8232-536D5D6D2EFD}.Release|Any CPU.Build.0 = Release|Any CPU
 		{40BA8202-606E-48E4-B43D-986C8DE49C13}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{40BA8202-606E-48E4-B43D-986C8DE49C13}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{40BA8202-606E-48E4-B43D-986C8DE49C13}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{40BA8202-606E-48E4-B43D-986C8DE49C13}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C10CE17-709F-43A6-B74A-1762AC20EDDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C10CE17-709F-43A6-B74A-1762AC20EDDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C10CE17-709F-43A6-B74A-1762AC20EDDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C10CE17-709F-43A6-B74A-1762AC20EDDE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
