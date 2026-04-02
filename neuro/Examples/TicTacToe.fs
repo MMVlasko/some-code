@@ -189,7 +189,7 @@ module TicTacToe =
             Layers.createLayer 64 9 Activation.Softmax
         ]
 
-    let trainModel (epochs: int) (onEpochEnd: (Trainer.EpochProgress -> unit) option) (verbose: bool) =
+    let trainModel (epochs: int) (batchSize: int) (learningRate: float) (onEpochEnd: (Trainer.EpochProgress -> unit) option) (verbose: bool) =
         let dataset = createDatasetForPlayerSilent O
         let trainSet, testSet = Data.split 0.9 dataset
         let network = createTrainingNetwork ()
@@ -197,8 +197,8 @@ module TicTacToe =
         let config = {
             Trainer.defaultConfig with
                 Epochs = epochs
-                BatchSize = 64
-                Optimizer = Optimizers.Adam(0.001, 0.9, 0.999, 1e-8)
+                BatchSize = batchSize
+                Optimizer = Optimizers.Adam(learningRate, 0.9, 0.999, 1e-8)
                 Loss = Losses.CrossEntropy
                 Verbose = verbose
                 OnEpochEnd = onEpochEnd
@@ -250,7 +250,7 @@ module TicTacToe =
         printfn ""
         printfn "Starting training...\n"
         
-        let result = trainModel epochs None true
+        let result = trainModel epochs 64 0.001 None true
         
         printfn "\n=== FINAL RESULTS ==="
         printfn $"Train Accuracy: {result.TrainAccuracy * 100.0:N2}%%"

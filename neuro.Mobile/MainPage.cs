@@ -14,11 +14,11 @@ public sealed class MainPage : ContentPage
         var ticTacToeButton = CreateDemoButton("Open Tic-Tac-Toe Demo", "#245F54", Colors.White);
         ticTacToeButton.Clicked += async (_, _) => await Navigation.PushAsync(new TicTacToePage());
 
-        var irisButton = CreateDemoButton("Iris Demo Soon", "#D8CCB0", Color.FromArgb("#173D38"));
-        irisButton.IsEnabled = false;
+        var irisButton = CreateDemoButton("Open Iris Demo", "#245F54", Colors.White);
+        irisButton.Clicked += async (_, _) => await Navigation.PushAsync(new IrisPage());
 
-        var mnistButton = CreateDemoButton("MNIST Demo Soon", "#D8CCB0", Color.FromArgb("#173D38"));
-        mnistButton.IsEnabled = false;
+        var mnistButton = CreateDemoButton("Open MNIST Demo", "#245F54", Colors.White);
+        mnistButton.Clicked += async (_, _) => await Navigation.PushAsync(new MnistPage());
 
         Content = new ScrollView
         {
@@ -37,7 +37,7 @@ public sealed class MainPage : ContentPage
                     },
                     new Label
                     {
-                        Text = "Choose a demo to run on the device. Tic-Tac-Toe already supports training and gameplay. Other demos can be added on top of the same F# core.",
+                        Text = "Choose a demo to run on the device. All three demos now train on-device through the shared F# core: Tic-Tac-Toe for gameplay, Iris for flower classification, and MNIST for handwritten digit recognition.",
                         FontSize = 15,
                         TextColor = Color.FromArgb("#3C5A55")
                     },
@@ -47,11 +47,11 @@ public sealed class MainPage : ContentPage
                         ticTacToeButton),
                     CreateDemoCard(
                         "Iris Classification",
-                        "Planned menu entry for a tabular training demo built on the same library.",
+                        "Train a classifier on-device, inspect metrics and predict flower classes from custom input.",
                         irisButton),
                     CreateDemoCard(
                         "MNIST",
-                        "Planned menu entry for image classification once mobile data packaging is added.",
+                        "Train on the bundled MNIST dataset and recognize digits from a touch canvas.",
                         mnistButton)
                 }
             }

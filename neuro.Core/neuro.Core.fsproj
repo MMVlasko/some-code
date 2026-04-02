@@ -27,6 +27,8 @@
         <Compile Include="..\neuro\Examples\Tests.fs" Link="Examples\Tests.fs" />
         <Compile Include="..\neuro\Examples\TicTacToe.fs" Link="Examples\TicTacToe.fs" />
         <Compile Include="..\neuro\Mobile\TicTacToeMobile.fs" Link="Mobile\TicTacToeMobile.fs" />
+        <Compile Include="..\neuro\Mobile\IrisMobile.fs" Link="Mobile\IrisMobile.fs" />
+        <Compile Include="..\neuro\Mobile\MnistMobile.fs" Link="Mobile\MnistMobile.fs" />
         <Content Include="..\neuro\Examples\Data\Iris.csv" Link="Examples\Data\Iris.csv" />
         <Content Include="..\neuro\Examples\Data\mnist_test.csv" Link="Examples\Data\mnist_test.csv" />
         <Content Include="..\neuro\Examples\Data\mnist_train.csv" Link="Examples\Data\mnist_train.csv" />

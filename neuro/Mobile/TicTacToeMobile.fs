@@ -44,7 +44,7 @@ type SerializableLayer() =
 type SerializableModel() =
     member val Layers: SerializableLayer[] = Array.empty with get, set
 
-module private TicTacToeInterop =
+module internal MobileInterop =
     let toDomainCell (value: int) =
         match value with
         | 0 -> Examples.TicTacToe.Empty
@@ -155,7 +155,7 @@ type TicTacToeModel internal (network: Layers.NeuralNetwork) =
     member internal _.Network = network
 
     member _.GetAiMove(board: int[,]) =
-        let domainBoard = TicTacToeInterop.toDomainBoard board
+        let domainBoard = MobileInterop.toDomainBoard board
         let features = Examples.TicTacToe.boardToFeatures domainBoard
         let predictions, _ = Layers.forwardNetwork network features
 
@@ -175,11 +175,11 @@ type TicTacToeModel internal (network: Layers.NeuralNetwork) =
 
     member this.ApplyAiMove(board: int[,]) =
         let move = this.GetAiMove(board)
-        let domainBoard = TicTacToeInterop.toDomainBoard board
+        let domainBoard = MobileInterop.toDomainBoard board
         let moved = Examples.TicTacToe.makeMove domainBoard move.Row move.Col Examples.TicTacToe.O
         if not moved then
             invalidOp "The model produced an invalid move for the current board."
-        TicTacToeInterop.writeBackBoard domainBoard board
+        MobileInterop.writeBackBoard domainBoard board
         move
 
 [<CLIMutable>]
@@ -198,23 +198,29 @@ type TicTacToeMobile private () =
         Array2D.zeroCreate 3 3
 
     static member TryMakeMove(board: int[,], row: int, col: int, player: MobileCell) =
-        let domainBoard = TicTacToeInterop.toDomainBoard board
-        let moved = Examples.TicTacToe.makeMove domainBoard row col (TicTacToeInterop.toDomainCell (int player))
+        let domainBoard = MobileInterop.toDomainBoard board
+        let moved = Examples.TicTacToe.makeMove domainBoard row col (MobileInterop.toDomainCell (int player))
 
         if moved then
-            TicTacToeInterop.writeBackBoard domainBoard board
+            MobileInterop.writeBackBoard domainBoard board
 
         moved
 
     static member EvaluateBoard(board: int[,]) =
         board
-        |> TicTacToeInterop.toDomainBoard
-        |> TicTacToeInterop.evaluateStatus
+        |> MobileInterop.toDomainBoard
+        |> MobileInterop.evaluateStatus
 
     static member Train(epochs: int) =
         TicTacToeMobile.Train(epochs, null)
 
+    static member Train(epochs: int, batchSize: int, learningRate: float) =
+        TicTacToeMobile.Train(epochs, batchSize, learningRate, null)
+
     static member Train(epochs: int, progress: Action<MobileTrainingProgress>) =
+        TicTacToeMobile.Train(epochs, 64, 0.001, progress)
+
+    static member Train(epochs: int, batchSize: int, learningRate: float, progress: Action<MobileTrainingProgress>) =
         let stopwatch = Stopwatch.StartNew()
         let mutable previousMark = stopwatch.Elapsed
 
@@ -238,7 +244,7 @@ type TicTacToeMobile private () =
                         EtaSeconds = etaSeconds
                     }))
 
-        let result = Examples.TicTacToe.trainModel epochs callback false
+        let result = Examples.TicTacToe.trainModel epochs batchSize learningRate callback false
         let firstLoss = List.head result.Metrics.TrainLoss
         let finalLoss = List.last result.Metrics.TrainLoss
 
@@ -256,7 +262,7 @@ type TicTacToeMobile private () =
         if not (String.IsNullOrWhiteSpace(directory)) then
             Directory.CreateDirectory(directory) |> ignore
 
-        let serialized = TicTacToeInterop.serializeNetwork model.Network
+        let serialized = MobileInterop.serializeNetwork model.Network
         let json = JsonSerializer.Serialize(serialized, JsonSerializerOptions(WriteIndented = true))
         File.WriteAllText(path, json)
 
@@ -268,7 +274,7 @@ type TicTacToeMobile private () =
             invalidOp "Model file is empty or invalid."
 
         serialized
-        |> TicTacToeInterop.deserializeNetwork
+        |> MobileInterop.deserializeNetwork
         |> TicTacToeModel
 
     static member ModelExists(path: string) =

@@ -26,6 +26,9 @@
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#245F54" />
     <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#F3ECDD" BaseSize="128,128" />
+    <MauiAsset Include="..\neuro\Examples\Data\Iris.csv" Link="Data\Iris.csv" />
+    <MauiAsset Include="..\neuro\Examples\Data\mnist_train.csv" Link="Data\mnist_train.csv" />
+    <MauiAsset Include="..\neuro\Examples\Data\mnist_test.csv" Link="Data\mnist_test.csv" />
   </ItemGroup>
 
 </Project>

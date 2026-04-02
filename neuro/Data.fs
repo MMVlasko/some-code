@@ -8,6 +8,11 @@ type Dataset = {
     Labels: float[,]
 }
 
+type NormalizationStats = {
+    Mean: float[]
+    Std: float[]
+}
+
 let createDataset features labels = 
     { Features = features; Labels = labels }
 
@@ -17,7 +22,7 @@ let map f (dataset: Dataset) =
     let newFeatures = Array2D.init rows cols (fun i j -> f dataset.Features[i, j])
     { dataset with Features = newFeatures }
 
-let normalize (dataset: Dataset) =
+let computeNormalizationStats (dataset: Dataset) =
     let rows = dataset.Features.GetLength(0)
     let cols = dataset.Features.GetLength(1)
     
@@ -37,14 +42,30 @@ let normalize (dataset: Dataset) =
     
     for j in 0 .. cols - 1 do
         std[j] <- sqrt(std[j] / float rows)
+
+    { Mean = mean; Std = std }
+
+let normalizeWithStats (stats: NormalizationStats) (dataset: Dataset) =
+    let rows = dataset.Features.GetLength(0)
+    let cols = dataset.Features.GetLength(1)
     
     let normalized = 
         Array2D.init rows cols (fun i j -> 
-            if std[j] > 0.0 then
-                (dataset.Features[i, j] - mean[j]) / std[j]
+            if stats.Std[j] > 0.0 then
+                (dataset.Features[i, j] - stats.Mean[j]) / stats.Std[j]
             else 0.0)
     
     { dataset with Features = normalized }
+
+let normalizeFeatureVector (stats: NormalizationStats) (features: float[]) =
+    Array.init features.Length (fun i ->
+        if stats.Std[i] > 0.0 then
+            (features[i] - stats.Mean[i]) / stats.Std[i]
+        else 0.0)
+
+let normalize (dataset: Dataset) =
+    let stats = computeNormalizationStats dataset
+    normalizeWithStats stats dataset
 
 let shuffleWithRandom (rnd: Random) (dataset: Dataset) =
     let rows = dataset.Features.GetLength(0)

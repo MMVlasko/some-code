@@ -38,14 +38,21 @@ public class MainActivity : MauiAppCompatActivity
 
         if (Window is not null)
         {
-            Window.DecorView?.SetBackgroundColor(pageColor);
+            var decorView = Window.DecorView;
+            decorView?.SetBackgroundColor(pageColor);
 
-            Window?.SetStatusBarColor(pageColor);
-
-            var controller = WindowCompat.GetInsetsController(Window, Window.DecorView);
-            if (controller is not null)
+            if (!OperatingSystem.IsAndroidVersionAtLeast(35))
             {
-                controller.AppearanceLightStatusBars = true;
+                Window.SetStatusBarColor(pageColor);
+            }
+
+            if (decorView is not null)
+            {
+                var controller = WindowCompat.GetInsetsController(Window, decorView);
+                if (controller is not null)
+                {
+                    controller.AppearanceLightStatusBars = true;
+                }
             }
         }
 

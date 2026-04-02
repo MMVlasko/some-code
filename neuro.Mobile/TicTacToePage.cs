@@ -3,6 +3,7 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Storage;
+using System.Globalization;
 using Path = System.IO.Path;
 
 namespace Neuro.Mobile;
@@ -25,12 +26,16 @@ public sealed class TicTacToePage : ContentPage
     private readonly Button _trainButton;
     private readonly Button _newGameButton;
     private readonly Button _deleteModelButton;
+    private readonly Entry _batchSizeEntry;
+    private readonly Entry _learningRateEntry;
 
     private TicTacToeModel? _model;
     private int[,] _board = TicTacToeMobile.CreateEmptyBoard();
     private bool _isTraining;
     private bool _gameFinished;
     private int _selectedEpochs = 90;
+    private const int DefaultBatchSize = 64;
+    private const double DefaultLearningRate = 0.001;
     private readonly string _modelPath = Path.Combine(FileSystem.Current.AppDataDirectory, "models", "tictactoe-model.json");
 
     public TicTacToePage()
@@ -90,6 +95,9 @@ public sealed class TicTacToePage : ContentPage
 
         _increaseEpochsButton = CreateEpochButton("+");
         _increaseEpochsButton.Clicked += (_, _) => ChangeEpochs(EpochStep);
+
+        _batchSizeEntry = CreateNumericEntry(DefaultBatchSize.ToString(CultureInfo.InvariantCulture));
+        _learningRateEntry = CreateNumericEntry(DefaultLearningRate.ToString(CultureInfo.InvariantCulture));
 
         _trainButton = new Button
         {
@@ -262,14 +270,68 @@ public sealed class TicTacToePage : ContentPage
                             },
                             _increaseEpochsButton
                         }
-                    }
+                    },
+                    CreateLabeledEntry("Batch Size", _batchSizeEntry),
+                    CreateLabeledEntry("Learning Rate", _learningRateEntry)
                 }
             }
         };
 
+    private static HorizontalStackLayout CreateLabeledEntry(string label, Entry entry) =>
+        new()
+        {
+            Spacing = 12,
+            Children =
+            {
+                new Label
+                {
+                    Text = label,
+                    WidthRequest = 120,
+                    VerticalTextAlignment = TextAlignment.Center,
+                    TextColor = Color.FromArgb("#3C5A55")
+                },
+                entry
+            }
+        };
+
+    private static Entry CreateNumericEntry(string text) =>
+        new()
+        {
+            Text = text,
+            Keyboard = Keyboard.Numeric,
+            BackgroundColor = Color.FromArgb("#F8F2E6"),
+            TextColor = Color.FromArgb("#173D38"),
+            HorizontalOptions = LayoutOptions.Fill
+        };
+
+    private bool TryReadTrainingSettings(out int batchSize, out double learningRate)
+    {
+        batchSize = 0;
+        learningRate = 0;
+
+        if (!int.TryParse(_batchSizeEntry.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out batchSize) || batchSize <= 0)
+        {
+            _statusLabel.Text = "Batch size must be a positive integer.";
+            return false;
+        }
+
+        if (!double.TryParse(_learningRateEntry.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out learningRate) || learningRate <= 0)
+        {
+            _statusLabel.Text = "Learning rate must be a positive number.";
+            return false;
+        }
+
+        return true;
+    }
+
     private async void OnTrainClicked(object? sender, EventArgs e)
     {
         if (_isTraining)
+        {
+            return;
+        }
+
+        if (!TryReadTrainingSettings(out var batchSize, out var learningRate))
         {
             return;
         }
@@ -288,6 +350,8 @@ public sealed class TicTacToePage : ContentPage
             {
                 var trained = TicTacToeMobile.Train(
                     epochs,
+                    batchSize,
+                    learningRate,
                     new Action<MobileTrainingProgress>(progress =>
                         MainThread.BeginInvokeOnMainThread(() =>
                         {
@@ -389,6 +453,8 @@ public sealed class TicTacToePage : ContentPage
         _trainButton.IsEnabled = !isTraining;
         _decreaseEpochsButton.IsEnabled = !isTraining && _selectedEpochs > MinEpochs;
         _increaseEpochsButton.IsEnabled = !isTraining && _selectedEpochs < MaxEpochs;
+        _batchSizeEntry.IsEnabled = !isTraining;
+        _learningRateEntry.IsEnabled = !isTraining;
         _newGameButton.IsEnabled = !isTraining && _model is not null;
         _deleteModelButton.IsEnabled = !isTraining && TicTacToeMobile.ModelExists(_modelPath);
         RefreshBoard();
