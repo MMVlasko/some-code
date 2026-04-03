@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Neuro.Mobile</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationTitle>Neuro Mobile</ApplicationTitle>
+    <ApplicationId>com.fskaluga.neuromobile</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion>36.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\neuro.Core\neuro.Core.fsproj" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#245F54" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#F3ECDD" BaseSize="128,128" />
+    <MauiAsset Include="..\neuro\Examples\Data\Iris.csv" Link="Data\Iris.csv" />
+    <MauiAsset Include="..\neuro\Examples\Data\mnist_train.csv" Link="Data\mnist_train.csv" />
+    <MauiAsset Include="..\neuro\Examples\Data\mnist_test.csv" Link="Data\mnist_test.csv" />
+  </ItemGroup>
+
+</Project>

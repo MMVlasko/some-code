@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <style name="MauiAppBarLayout" parent="ThemeOverlay.AppCompat.Light">
+    <item name="android:background">@color/pageBackground</item>
+    <item name="backgroundTint">@color/pageBackground</item>
+  </style>
+
+  <style name="MauiToolbar" parent="Widget.MaterialComponents.Toolbar">
+    <item name="android:background">@color/pageBackground</item>
+    <item name="backgroundTint">@color/pageBackground</item>
+    <item name="titleTextColor">@color/headerText</item>
+    <item name="subtitleTextColor">@color/headerText</item>
+  </style>
+
+  <style name="Maui.MainTheme" parent="Maui.MainTheme">
+    <item name="android:windowBackground">@color/pageBackground</item>
+    <item name="android:colorBackground">@color/pageBackground</item>
+    <item name="android:statusBarColor">@color/pageBackground</item>
+    <item name="android:navigationBarColor">@color/pageBackground</item>
+    <item name="android:windowLightStatusBar">true</item>
+    <item name="colorPrimary">@color/pageBackground</item>
+    <item name="colorPrimaryDark">@color/pageBackground</item>
+    <item name="colorPrimaryVariant">@color/pageBackground</item>
+    <item name="colorSurface">@color/pageBackground</item>
+    <item name="colorOnPrimary">@color/headerText</item>
+    <item name="colorOnSurface">@color/headerText</item>
+    <item name="appBarLayoutStyle">@style/MauiAppBarLayout</item>
+    <item name="toolbarStyle">@style/MauiToolbar</item>
+  </style>
+
+  <style name="Maui.SplashTheme" parent="Maui.SplashTheme">
+    <item name="maui_splash">true</item>
+    <item name="android:windowBackground">@color/pageBackground</item>
+    <item name="android:statusBarColor">@color/pageBackground</item>
+    <item name="android:navigationBarColor">@color/pageBackground</item>
+    <item name="android:windowLightStatusBar">true</item>
+  </style>
+</resources>

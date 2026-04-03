@@ -3,6 +3,7 @@ namespace Examples
 
 open System
 open System.Diagnostics
+open System.IO
 
 module Tests =
     
@@ -510,7 +511,8 @@ module Tests =
         
         printfn "  Testing multi-layer network gradients..."
         
-        let layer1 = Layers.createLayer 2 3 Activation.ReLU
+        // Use smooth activation to avoid dead-ReLU false negatives in this gradient-shape test.
+        let layer1 = Layers.createLayer 2 3 Activation.Tanh
         let layer2 = Layers.createLayer 3 1 Activation.Linear
         
         let multiInput = array2D [[0.5; -0.5]]
@@ -551,7 +553,8 @@ module Tests =
         printfn "  Testing gradient flow through multiple layers..."
 
         let net1 = Layers.createLayer 2 4 Activation.Tanh
-        let net2 = Layers.createLayer 4 3 Activation.ReLU
+        // Use smooth activation to avoid dead-ReLU false negatives in this flow test.
+        let net2 = Layers.createLayer 4 3 Activation.Tanh
         let net3 = Layers.createLayer 3 1 Activation.Linear
         
         let testInput = array2D [[0.3; -0.2]]
@@ -580,6 +583,193 @@ module Tests =
         printfn "    Gradient flow verified through 3 layers"
         
         printfn "    Gradient computation passed!\n"
+
+    let testCNNBlock () =
+        printfn "=== TEST 9: CNN Block ==="
+
+        printfn "  Testing tensor/matrix round-trip..."
+        let matrix = Array2D.init 2 16 (fun i j -> float (i * 16 + j) / 16.0)
+        let tensor = ConvLayers.matrixToTensor matrix 1 4 4
+        let matrixBack = ConvLayers.tensorToMatrix tensor
+
+        for i in 0 .. matrix.GetLength(0) - 1 do
+            for j in 0 .. matrix.GetLength(1) - 1 do
+                assertApproxEqual matrixBack[i, j] matrix[i, j] 1e-10 "Tensor/matrix round-trip"
+
+        printfn "  Testing forward/backward shapes..."
+        let testNetwork : ConvLayers.CNNNetwork = [
+            ConvLayers.Conv2D (ConvLayers.createConv2D 1 4 3 1 1 Activation.ReLU)
+            ConvLayers.BatchNorm2D (ConvLayers.createBatchNorm2D 4)
+            ConvLayers.AvgPool2D (ConvLayers.createAvgPool2D 2 2)
+            ConvLayers.ReshapeToMatrix (ConvLayers.createReshapeToMatrix 4 2 2)
+            ConvLayers.Dense (Layers.createLayer (4 * 2 * 2) 2 Activation.Softmax)
+        ]
+
+        let inputBatch = Array2D.init 3 16 (fun i j -> float ((i + j) % 5) / 5.0)
+        let inputTensor = ConvLayers.matrixToTensor inputBatch 1 4 4
+        let output, caches = ConvLayers.forwardNetwork testNetwork (ConvLayers.Tensor4D inputTensor)
+
+        let predictions =
+            match output with
+            | ConvLayers.Matrix m -> m
+            | _ -> failwith "CNN output should be matrix after Flatten + Dense"
+
+        assertEqual (predictions.GetLength(0)) 3 "CNN forward batch size"
+        assertEqual (predictions.GetLength(1)) 2 "CNN forward class count"
+        assertEqual (List.length caches) 5 "CNN cache length"
+
+        let labels = array2D [[1.0; 0.0]; [0.0; 1.0]; [1.0; 0.0]]
+        let grad = Losses.gradient Losses.CrossEntropy predictions labels
+        let _, grads = ConvLayers.backwardNetwork testNetwork caches (ConvLayers.Matrix grad)
+        assertEqual (List.length grads) 5 "CNN gradients length"
+
+        printfn "  Testing CNN training quality gate >= 85%% with Adam and Momentum..."
+        let createSyntheticImageDataset samplesPerClass =
+            let total = samplesPerClass * 2
+            let features = Array2D.zeroCreate total 64
+            let labels = Array2D.zeroCreate total 2
+
+            let writePixel i row col value =
+                let idx = row * 8 + col
+                features[i, idx] <- value
+
+            for i in 0 .. samplesPerClass - 1 do
+                let idx = i
+                labels[idx, 0] <- 1.0
+                for r in 0 .. 7 do
+                    writePixel idx r 3 1.0
+
+            for i in 0 .. samplesPerClass - 1 do
+                let idx = samplesPerClass + i
+                labels[idx, 1] <- 1.0
+                for c in 0 .. 7 do
+                    writePixel idx 4 c 1.0
+
+            Data.createDataset features labels
+
+        let trainSet = createSyntheticImageDataset 120
+        let cnn : ConvLayers.CNNNetwork = [
+            ConvLayers.Conv2D (ConvLayers.createConv2D 1 4 3 1 1 Activation.ReLU)
+            ConvLayers.BatchNorm2D (ConvLayers.createBatchNorm2D 4)
+            ConvLayers.MaxPool2D (ConvLayers.createMaxPool2D 2 2)
+            ConvLayers.Flatten (ConvLayers.createFlatten 4 4 4)
+            ConvLayers.Dense (Layers.createLayer (4 * 4 * 4) 2 Activation.Softmax)
+        ]
+
+        let adamConfig = {
+            TrainerCNN.defaultConfig with
+                Epochs = 6
+                BatchSize = 16
+                LearningRate = 0.03
+                Optimizer = Some (Optimizers.Adam(0.01, 0.9, 0.999, 1e-8))
+                Loss = Losses.CrossEntropy
+                Verbose = false
+        }
+
+        let momentumConfig = {
+            TrainerCNN.defaultConfig with
+                Epochs = 6
+                BatchSize = 16
+                LearningRate = 0.03
+                Optimizer = Some (Optimizers.Momentum(0.03, 0.9))
+                Loss = Losses.CrossEntropy
+                Verbose = false
+        }
+
+        let _, trainedAdam = TrainerCNN.train adamConfig cnn trainSet 1 8 8
+        let adamAcc = TrainerCNN.accuracy trainedAdam trainSet 1 8 8
+        assertTrue (adamAcc >= 0.85) $"CNN Adam accuracy should be >= 85%%, got {adamAcc * 100.0:N2}%%"
+
+        let _, trainedMomentum = TrainerCNN.train momentumConfig cnn trainSet 1 8 8
+        let momentumAcc = TrainerCNN.accuracy trainedMomentum trainSet 1 8 8
+        assertTrue (momentumAcc >= 0.85) $"CNN Momentum accuracy should be >= 85%%, got {momentumAcc * 100.0:N2}%%"
+
+        printfn $"    CNN synthetic accuracy (Adam): {adamAcc * 100.0:N2}%%"
+        printfn $"    CNN synthetic accuracy (Momentum): {momentumAcc * 100.0:N2}%%"
+        printfn "    CNN block passed!\n"
+
+    let testExperimentHelpers () =
+        printfn "=== TEST 10: Experiment Helpers ==="
+
+        printfn "  Testing confusion matrix and class metrics..."
+        let preds = [|0; 1; 2; 1; 0|]
+        let targets = [|0; 2; 2; 1; 0|]
+        let cm = Experiments.confusionMatrix 3 preds targets
+        assertEqual cm[0, 0] 2 "ConfusionMatrix true0/pred0"
+        assertEqual cm[2, 1] 1 "ConfusionMatrix true2/pred1"
+
+        let metrics = Experiments.perClassMetrics cm
+        assertEqual metrics.Length 3 "Per-class metrics length"
+        assertTrue (metrics[0].Precision > 0.5) "Class0 precision should be > 0.5"
+
+        printfn "  Testing classification markdown export..."
+        let reportPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "test_classification_report.md")
+        Experiments.writeClassificationMarkdown reportPath "Test Classification" [|"0"; "1"; "2"|] cm
+        assertTrue (File.Exists(reportPath)) "Classification report should be created"
+
+        printfn "  Testing saliency PGM export..."
+        let saliencyPath = Path.Combine(__SOURCE_DIRECTORY__, "Reports", "test_saliency.pgm")
+        let saliency = Array.init (4 * 4) (fun i -> float i)
+        Experiments.writeSaliencyAsPgm saliencyPath 4 4 saliency
+        assertTrue (File.Exists(saliencyPath)) "Saliency PGM should be created"
+
+        printfn "    Experiment helpers passed!\n"
+
+    let testRegularizationTransforms () =
+        printfn "=== TEST 11: Regularization Transforms ==="
+
+        let rows = 4
+        let features = Array2D.init rows 784 (fun i j -> float (i * 1000 + j))
+        let labels =
+            Array2D.init rows 10 (fun i j ->
+                if j = (i % 10) then 1.0 else 0.0)
+
+        let dataset = Data.createDataset features labels
+
+        printfn "  Testing label smoothing..."
+        let smoothingCfg: RegularizationMNIST.RegConfig =
+            { Name = "smooth"; LabelSmoothing = 0.1; WeightDecay = 0.0; Mixup = false; Cutmix = false }
+        let smoothedDs = RegularizationMNIST.buildTrainDatasetForTesting dataset smoothingCfg
+        let smoothed = smoothedDs.Labels
+        for i in 0 .. rows - 1 do
+            let rowSum = [|0 .. 9|] |> Array.sumBy (fun j -> smoothed[i, j])
+            assertApproxEqual rowSum 1.0 1e-10 "Smoothed row should sum to 1"
+
+        printfn "  Testing mixup transform..."
+        let mixupCfg: RegularizationMNIST.RegConfig =
+            { Name = "mixup"; LabelSmoothing = 0.0; WeightDecay = 0.0; Mixup = true; Cutmix = false }
+        let mixed = RegularizationMNIST.buildTrainDatasetForTesting dataset mixupCfg
+        assertEqual (mixed.Features.GetLength(0)) rows "Mixup rows"
+        assertEqual (mixed.Features.GetLength(1)) 784 "Mixup cols"
+        for i in 0 .. rows - 1 do
+            let rowSum = [|0 .. 9|] |> Array.sumBy (fun j -> mixed.Labels[i, j])
+            assertApproxEqual rowSum 1.0 1e-10 "Mixup label row should sum to 1"
+
+        let mixupChanged =
+            [ for i in 0 .. rows - 1 do
+                for j in 0 .. 20 do
+                    yield abs (mixed.Features[i, j] - dataset.Features[i, j]) ]
+            |> List.exists (fun d -> d > 1e-10)
+        assertTrue mixupChanged "Mixup should modify at least some feature values"
+
+        printfn "  Testing cutmix transform..."
+        let cutmixCfg: RegularizationMNIST.RegConfig =
+            { Name = "cutmix"; LabelSmoothing = 0.0; WeightDecay = 0.0; Mixup = false; Cutmix = true }
+        let cutmixed = RegularizationMNIST.buildTrainDatasetForTesting dataset cutmixCfg
+        assertEqual (cutmixed.Features.GetLength(0)) rows "Cutmix rows"
+        assertEqual (cutmixed.Features.GetLength(1)) 784 "Cutmix cols"
+        for i in 0 .. rows - 1 do
+            let rowSum = [|0 .. 9|] |> Array.sumBy (fun j -> cutmixed.Labels[i, j])
+            assertApproxEqual rowSum 1.0 1e-10 "Cutmix label row should sum to 1"
+
+        let cutmixChanged =
+            [ for i in 0 .. rows - 1 do
+                for j in 0 .. 783 do
+                    yield abs (cutmixed.Features[i, j] - dataset.Features[i, j]) ]
+            |> List.exists (fun d -> d > 1e-10)
+        assertTrue cutmixChanged "Cutmix should copy at least one patch into features"
+
+        printfn "    Regularization transforms passed!\n"
     
     let run () =
         printfn "\n========================================"
@@ -598,6 +788,9 @@ module Tests =
             testActivationsAndLosses()
             testFullTrainingCycle()
             testGradients()
+            testCNNBlock()
+            testExperimentHelpers()
+            testRegularizationTransforms()
             
             stopwatch.Stop()
             

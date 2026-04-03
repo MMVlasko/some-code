@@ -9,7 +9,17 @@ type TrainingConfig = {
     Optimizer: Optimizers.Optimizer
     Loss: Losses.LossFunction
     Verbose: bool
+    OnEpochEnd: (EpochProgress -> unit) option
     ValidationSplit: float option
+    WeightDecay: float
+    RandomSeed: int option
+}
+
+and EpochProgress = {
+    Epoch: int
+    TotalEpochs: int
+    TrainLoss: float
+    ValLoss: float option
 }
 
 type TrainingMetrics = {
@@ -24,16 +34,23 @@ let defaultConfig = {
     Optimizer = Optimizers.SGD 0.01
     Loss = Losses.MSE
     Verbose = true
+    OnEpochEnd = None
     ValidationSplit = None
+    WeightDecay = 0.0
+    RandomSeed = None
 }
 
 let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
-    printfn "Starting training..."
-    printfn "Network layers: %d" (List.length network)
-    printfn "Training samples: %d" (dataset.Features.GetLength(0))
-    printfn "Features per sample: %d" (dataset.Features.GetLength(1))
-    printfn "Classes: %d" (dataset.Labels.GetLength(1))
-    printfn ""
+    let log message =
+        if config.Verbose then
+            printfn "%s" message
+
+    log "Starting training..."
+    log (sprintf "Network layers: %d" (List.length network))
+    log (sprintf "Training samples: %d" (dataset.Features.GetLength(0)))
+    log (sprintf "Features per sample: %d" (dataset.Features.GetLength(1)))
+    log (sprintf "Classes: %d" (dataset.Labels.GetLength(1)))
+    log ""
     
     let trainSet, valSet =
         match config.ValidationSplit with
@@ -48,7 +65,10 @@ let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
     let mutable valLosses = []
     
     for epoch in 1 .. config.Epochs do
-        let shuffledTrain = Data.shuffle trainSet
+        let shuffledTrain =
+            match config.RandomSeed with
+            | Some seed -> Data.shuffleWithSeed (seed + epoch - 1) trainSet
+            | None -> Data.shuffle trainSet
         let batches = Data.batch config.BatchSize shuffledTrain
         
         let mutable epochLoss = 0.0
@@ -61,7 +81,7 @@ let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
                 match layers with
                 | [] -> (currentInput, List.rev cache)
                 | layer :: rest ->
-                    let z, output = Layers.forward layer currentInput
+                    let z, output = Layers.forwardTraining layer currentInput
                     forwardWithInputs rest output ((currentInput, z, output) :: cache)
             
             let finalOutput, layerCache = forwardWithInputs currentNetwork batch.Features []
@@ -87,9 +107,20 @@ let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
             
             let gradientsReversed = backwardPass reversedNetwork reversedCache lossGrad []
             let gradients = List.rev gradientsReversed
+
+            let gradientsWithDecay =
+                if config.WeightDecay <= 0.0 then
+                    gradients
+                else
+                    List.map2 (fun (layer: Layers.DenseLayer) ((gradW: float[,]), (gradB: float[])) ->
+                        let decayedW =
+                            Array2D.init (gradW.GetLength(0)) (gradW.GetLength(1)) (fun i j ->
+                                gradW[i, j] + config.WeightDecay * layer.Weights[i, j])
+                        decayedW, gradB
+                    ) currentNetwork gradients
             
             let newState, updatedNetwork = 
-                Optimizers.update config.Optimizer optimizerState gradients currentNetwork
+                Optimizers.update config.Optimizer optimizerState gradientsWithDecay currentNetwork
             optimizerState <- newState
             currentNetwork <- updatedNetwork
         
@@ -105,12 +136,26 @@ let train config (network: Layers.NeuralNetwork) (dataset: Data.Dataset) =
         if (valSet.Features.GetLength(0) > 0) then
             valLosses <- avgValLoss :: valLosses
         
+        let progress = {
+            Epoch = epoch
+            TotalEpochs = config.Epochs
+            TrainLoss = avgTrainLoss
+            ValLoss =
+                if valSet.Features.GetLength(0) > 0 then
+                    Some avgValLoss
+                else
+                    None
+        }
+
+        config.OnEpochEnd
+        |> Option.iter (fun callback -> callback progress)
+
         if config.Verbose && (epoch % 10 = 0 || epoch = 1) then
-            printfn "Epoch %d/%d - Train Loss: %.6f" epoch config.Epochs avgTrainLoss
+            log (sprintf "Epoch %d/%d - Train Loss: %.6f" epoch config.Epochs avgTrainLoss)
             if (valSet.Features.GetLength(0) > 0) then
-                printfn "              Val Loss: %.6f" avgValLoss
+                log (sprintf "              Val Loss: %.6f" avgValLoss)
     
-    printfn "Training completed!"
+    log "Training completed!"
     
     let metrics = {
         TrainLoss = List.rev trainLosses

@@ -8,6 +8,11 @@ type Dataset = {
     Labels: float[,]
 }
 
+type NormalizationStats = {
+    Mean: float[]
+    Std: float[]
+}
+
 let createDataset features labels = 
     { Features = features; Labels = labels }
 
@@ -17,7 +22,7 @@ let map f (dataset: Dataset) =
     let newFeatures = Array2D.init rows cols (fun i j -> f dataset.Features[i, j])
     { dataset with Features = newFeatures }
 
-let normalize (dataset: Dataset) =
+let computeNormalizationStats (dataset: Dataset) =
     let rows = dataset.Features.GetLength(0)
     let cols = dataset.Features.GetLength(1)
     
@@ -37,17 +42,32 @@ let normalize (dataset: Dataset) =
     
     for j in 0 .. cols - 1 do
         std[j] <- sqrt(std[j] / float rows)
+
+    { Mean = mean; Std = std }
+
+let normalizeWithStats (stats: NormalizationStats) (dataset: Dataset) =
+    let rows = dataset.Features.GetLength(0)
+    let cols = dataset.Features.GetLength(1)
     
     let normalized = 
         Array2D.init rows cols (fun i j -> 
-            if std[j] > 0.0 then
-                (dataset.Features[i, j] - mean[j]) / std[j]
+            if stats.Std[j] > 0.0 then
+                (dataset.Features[i, j] - stats.Mean[j]) / stats.Std[j]
             else 0.0)
     
     { dataset with Features = normalized }
 
-let shuffle (dataset: Dataset) =
-    let rnd = Random()
+let normalizeFeatureVector (stats: NormalizationStats) (features: float[]) =
+    Array.init features.Length (fun i ->
+        if stats.Std[i] > 0.0 then
+            (features[i] - stats.Mean[i]) / stats.Std[i]
+        else 0.0)
+
+let normalize (dataset: Dataset) =
+    let stats = computeNormalizationStats dataset
+    normalizeWithStats stats dataset
+
+let shuffleWithRandom (rnd: Random) (dataset: Dataset) =
     let rows = dataset.Features.GetLength(0)
     let indices = Array.init rows id
     
@@ -56,6 +76,11 @@ let shuffle (dataset: Dataset) =
         let temp = indices[i]
         indices[i] <- indices[j]
         indices[j] <- temp
+
+    if rows > 1 && (indices |> Array.forall2 (=) (Array.init rows id)) then
+        let temp = indices[0]
+        indices[0] <- indices[1]
+        indices[1] <- temp
     
     let colsFeatures = dataset.Features.GetLength(1)
     let shuffledFeatures = 
@@ -68,6 +93,12 @@ let shuffle (dataset: Dataset) =
             dataset.Labels[indices[i], j])
     
     { Features = shuffledFeatures; Labels = shuffledLabels }
+
+let shuffle (dataset: Dataset) =
+    shuffleWithRandom (Random()) dataset
+
+let shuffleWithSeed seed (dataset: Dataset) =
+    shuffleWithRandom (Random(seed)) dataset
 
 let batch batchSize (dataset: Dataset) =
     let nSamples = dataset.Features.GetLength(0)

@@ -1,25 +1,33 @@
 # neuro - нейросетевой фреймворк на F#
 
 Легковесный учебно-практический фреймворк для нейросетей, написанный с нуля на F# без внешних ML-библиотек.
-Проект показывает полный цикл: от подготовки данных и матричных операций до обучения, валидации и запуска реальных примеров (`Iris`, `MNIST`, `TicTacToe`).
+Проект показывает полный цикл: от подготовки данных и матричных операций до обучения, валидации и запуска реальных примеров (`Iris`, `MNIST`, `CNN MNIST`, `TicTacToe`).
+
+Текущая версия репозитория уже не ограничивается одним консольным приложением. Сейчас это продукт из трех слоев:
+
+- `neuro.Core` - F# библиотека с ядром, тренерами, примерами и reusable API;
+- `neuro` - консольный host с прежним меню сценариев;
+- `neuro.Mobile` - Android-first .NET MAUI приложение с UI поверх того же F# ядра.
 
 ---
 
 ## Содержание
 
 1. [Что это за проект](#что-это-за-проект)
-2. [Ключевые возможности](#ключевые-возможности)
-3. [Быстрый старт](#быстрый-старт)
-4. [Как устроено обучение](#как-устроено-обучение)
-5. [Модули и API](#модули-и-api)
-6. [Примеры](#примеры)
-7. [Структура проекта](#структура-проекта)
+2. [Что уже реализовано](#что-уже-реализовано)
+3. [Ключевые возможности](#ключевые-возможности)
+4. [Быстрый старт](#быстрый-старт)
+5. [Мобильное приложение](#мобильное-приложение)
+6. [Как устроено обучение](#как-устроено-обучение)
+7. [Модули и API](#модули-и-api)
+8. [Примеры](#примеры)
+9. [Структура проекта](#структура-проекта)
 
 ---
 
 ## Что это за проект
 
-`neuro` - это консольное приложение (`net9.0`), в котором реализована модульная мини-экосистема для нейросетей:
+`neuro` - это учебно-практический нейрофреймворк и набор demo-приложений на .NET 10.0, в котором реализована модульная мини-экосистема для нейросетей:
 
 - базовые операции над матрицами;
 - функции активации и их производные;
@@ -34,15 +42,59 @@
 
 ---
 
+## Что уже реализовано
+
+В репозитории уже реализованы и работают следующие части продукта:
+
+- выделено F# ядро в отдельную библиотеку `neuro.Core`;
+- сохранено консольное приложение `neuro` как thin host с прежним меню примеров;
+- добавлено Android-first MAUI приложение `neuro.Mobile`;
+- в мобильном приложении есть главное меню демо-сценариев;
+- реализован мобильный сценарий `TicTacToe` с обучением модели прямо на устройстве и игрой против сети;
+- реализован мобильный сценарий `Iris` с обучением на устройстве, метриками и предсказанием класса по 4 признакам;
+- реализован мобильный сценарий `MNIST` с обучением на полном bundled dataset и распознаванием цифр;
+- для мобильных демо доступны настройки `epochs`, `batch size`, `learning rate`;
+- во время обучения в мобильном UI показываются:
+  - прогресс по эпохам;
+  - progress bar;
+  - время на эпоху;
+  - приблизительный ETA;
+  - итоговые метрики после завершения;
+- для `TicTacToe`, `Iris` и `MNIST` реализованы:
+  - сохранение последней модели в app storage;
+  - автоматическая загрузка сохраненной модели;
+  - удаление сохраненной модели;
+- игровой экран `TicTacToe` адаптирован под мобильный UX:
+  - игра блокируется, пока модель не обучена или не загружена;
+  - `X` и `O` окрашены разными цветами;
+  - AI выбирает ход только среди допустимых пустых клеток.
+- экран `Iris` позволяет вводить признаки вручную и получать вероятности по 3 классам.
+- экран `MNIST` открывает отдельный modal canvas для рисования цифры без конфликта со scroll страницы.
+
+Итог: репозиторий теперь описывает не только алгоритмы, но и готовое учебное мобильное приложение поверх общего ML-ядра.
+
+---
+
 ## Ключевые возможности
 
 - Обучение многослойной сети как списка слоев `DenseLayer list`.
+- Поддержка слоев: `Dense` и `Dropout`.
+- Базовая поддержка сверточных архитектур: `Conv2D`, `MaxPool2D`, `AvgPool2D`, `Flatten/Reshape`, `BatchNorm2D`.
 - Поддержка активаций: `Sigmoid`, `ReLU`, `Tanh`, `Softmax`, `Linear`.
 - Поддержка функций потерь: `MSE`, `CrossEntropy`, `BinaryCrossEntropy`.
 - Поддержка оптимизаторов: `SGD`, `Momentum`, `Adam`, `GradientClipping`.
 - Подготовка данных: нормализация, перемешивание, батчинг, split.
 - Практические примеры на реальных данных (`Iris`, `MNIST`) и игровой задаче (`TicTacToe`).
+- Отдельный пример CNN на MNIST (`Examples/CNNMNIST.fs`).
+- В CNN-тренере есть поддержка `SGD`, `Momentum`, `Adam`, `GradientClipping`.
+- В CNN-сценарии зафиксирован quality gate: `test accuracy >= 85%`.
 - Большой набор встроенных проверок в `Examples/Tests.fs`.
+- Единое F# ядро переиспользуется из консольного и мобильного приложений.
+- Для `Trainer` добавлен callback прогресса эпох, пригодный для UI-host приложений.
+- Для mobile facade реализованы `Train`, `SaveModel`, `LoadModel`, `DeleteModel`, `ModelExists`.
+- Для мобильного `TicTacToe` реализованы сохранение/загрузка модели и безопасный выбор валидного хода.
+- Для мобильного `Iris` реализованы нормализация, сериализация модели и inference по пользовательскому вводу.
+- Для мобильного `MNIST` реализованы обучение на полном CSV dataset и отдельный экран для рисования цифры.
 
 ---
 
@@ -50,13 +102,19 @@
 
 ### Требования
 
-- .NET SDK 9.0+
+- .NET SDK 10.0+
 - macOS / Linux / Windows
+- Для `neuro.Mobile`: установленный MAUI workload (`maui-android`)
 
-### Сборка и запуск
+### Сборка решения
 
 ```bash
 dotnet build neuro.sln
+```
+
+### Запуск консольного приложения
+
+```bash
 dotnet run --project neuro/neuro.fsproj
 ```
 
@@ -66,7 +124,21 @@ dotnet run --project neuro/neuro.fsproj
 - `2` - Iris Classification
 - `3` - MNIST Classification
 - `4` - TicTacToe
+- `5` - MNIST CNN (Conv2D)
+- `6` - Hyperparameter Lab
+- `7` - MNIST Regularization Experiments
+- `8` - Interpretability Tools
+- `9` - Benchmark Harness
 - `0` - Exit
+
+### Сборка мобильного приложения
+
+```bash
+dotnet workload restore neuro.Mobile/neuro.Mobile.csproj
+dotnet build neuro.Mobile/neuro.Mobile.csproj
+```
+
+Для запуска на Android можно использовать стандартный workflow Visual Studio / Rider / `dotnet build` + deploy на устройство или эмулятор.
 
 ### Важные данные
 
@@ -75,6 +147,37 @@ dotnet run --project neuro/neuro.fsproj
 - `Iris.csv`
 - `mnist_train.csv`
 - `mnist_test.csv`
+
+---
+
+## Мобильное приложение
+
+`neuro.Mobile` - это Android-first MAUI приложение, использующее тот же F# движок, что и консольная версия.
+
+Что сейчас реализовано в мобильном приложении:
+
+- главное меню с тремя рабочими демо: `TicTacToe`, `Iris`, `MNIST`;
+- единый UX-паттерн для всех демо:
+  - настройки обучения;
+  - запуск обучения на устройстве;
+  - progress bar;
+  - время на эпоху и ETA;
+  - итоговые метрики;
+  - сохранение, загрузка и удаление модели;
+- `TicTacToe`:
+  - обучение модели выбора хода;
+  - игра против сети после тренировки или загрузки модели;
+  - защита от невалидных AI-ходов;
+- `Iris`:
+  - обучение классификатора на bundled `Iris.csv`;
+  - ручной ввод 4 признаков;
+  - предсказанный класс и вероятности по 3 классам;
+- `MNIST`:
+  - обучение на полном bundled `mnist_train.csv` / `mnist_test.csv`;
+  - отдельный modal canvas-экран для рисования цифры;
+  - inference по нарисованной цифре с отображением top probabilities.
+
+Мобильное приложение больше не ограничено одним игровым сценарием: это полноценный Android-клиент поверх общего F# ML-ядра.
 
 ---
 
@@ -191,21 +294,26 @@ Dataset
 - `DenseLayer`:
   - `Weights: float[,]` размером `[outputSize, inputSize]`
   - `Bias: float[]` длиной `outputSize`
-  - `Activation`, `InputSize`, `OutputSize`.
+  - `Activation`, `InputSize`, `OutputSize`
+  - `Kind` (`Dense` или `Dropout`)
+  - `DropoutRate` (используется только для `Dropout`).
 - `NeuralNetwork = DenseLayer list` - сеть как список слоев.
 
 Функции:
 
 - `createLayer inputSize outputSize activation` - создает слой с Xavier-подобной инициализацией: масштаб `sqrt(6 / (in + out))`, bias = 0.
+- `createDropout size rate` - создает dropout-слой размера `size` с вероятностью зануления `rate`.
 - `forward layer input` - прямой проход слоя:
   - считает `z = input * W^T + b`
   - применяет активацию
   - возвращает `(z, output)`.
+- `forwardTraining layer input` - прямой проход в training-режиме (для `Dropout` генерирует маску и применяет inverted dropout).
 - `forwardNetwork network input` - прогоняет вход через все слои:
   - возвращает `(finalOutput, cache)`;
   - `cache` хранит `(z, output)` по слоям в порядке обратного прохода.
 - `backward layer gradOutput input z output` - backward для одного слоя:
   - строит `gradActivation` (для `Softmax` используется `gradOutput` как есть);
+  - для `Dropout` использует сохраненную маску из `z`;
   - считает `gradWeights`, `gradBias` (усредняет по batch);
   - считает `gradInput` для предыдущего слоя;
   - возвращает `(gradInput, gradWeights, gradBias)`.
@@ -279,7 +387,13 @@ Dataset
   - `Epochs`, `BatchSize`
   - `Optimizer`, `Loss`
   - `Verbose`
+  - `OnEpochEnd: (EpochProgress -> unit) option`
   - `ValidationSplit: float option`.
+- `EpochProgress`:
+  - `Epoch`
+  - `TotalEpochs`
+  - `TrainLoss`
+  - `ValLoss`.
 - `TrainingMetrics`:
   - `TrainLoss: float list`
   - `ValLoss: float list`
@@ -296,7 +410,57 @@ Dataset
 - `predict network features` - прямой проход сети и возврат матрицы предсказаний.
 - `accuracy network dataset` - accuracy по `argmax` (подходит для one-hot классификации).
 
-Нюанс: `ValidationSplit = None` отключает валидацию полностью; в этом случае `ValLoss` остается пустым списком.
+Нюансы:
+
+- `ValidationSplit = None` отключает валидацию полностью; в этом случае `ValLoss` остается пустым списком.
+- `OnEpochEnd` позволяет UI-host приложениям получать прогресс обучения без парсинга консольного вывода.
+
+### `ConvLayers.fs`
+
+Модуль слоев для сверточной сети и mixed-пайплайна (`Tensor4D` + dense-голова).
+
+Типы:
+
+- `LayerData = Tensor4D | Matrix`.
+- `Conv2DLayer`, `MaxPool2DLayer`, `FlattenLayer`.
+- `CNNLayer = Conv2D | MaxPool2D | Flatten | Dense`.
+- `CNNNetwork = CNNLayer list`.
+
+Функции:
+
+- `createConv2D` - создание сверточного слоя.
+- `createMaxPool2D` - max-pooling слой.
+- `createAvgPool2D` - average-pooling слой.
+- `createFlatten` - flatten слой (`Tensor4D -> Matrix`).
+- `createReshapeToMatrix`, `createReshapeToTensor` - явные reshape-слои между `Tensor4D` и `Matrix`.
+- `createBatchNorm2D` - batch normalization по каналам.
+- `matrixToTensor`, `tensorToMatrix` - преобразование форматов входа/выхода.
+- `forwardLayer`, `forwardNetwork` - прямой проход.
+- `backwardLayer`, `backwardNetwork` - обратный проход.
+- `initOptimizerState` - инициализация состояния оптимизатора для CNN.
+- `updateNetwork` - обновление параметров `Conv2D` / `Dense` / `BatchNorm2D` через `SGD`, `Momentum`, `Adam`, `GradientClipping`.
+- `updateNetworkSGD` - backward-compatible обертка для SGD.
+
+### `TrainerCNN.fs`
+
+Тренировочный модуль для CNN.
+
+Типы:
+
+- `CNNTrainingConfig` - конфиг обучения (включая выбор оптимизатора).
+- `CNNTrainingMetrics` - метрики обучения.
+
+Функции:
+
+- `train` - полный training loop для mixed CNN-сети.
+- `predict` - инференс.
+- `accuracy` - точность по argmax.
+
+Нюансы текущей реализации:
+
+- вход в `train`/`predict` задается как `float[,]` + явный shape (`channels`, `height`, `width`);
+- если `Optimizer = None`, используется `SGD LearningRate` для обратной совместимости.
+- при `Optimizer = Some ...` поддерживаются `SGD`, `Momentum`, `Adam`, `GradientClipping`.
 
 ### `Examples/*`
 
@@ -314,6 +478,13 @@ Dataset
 - `printDigit image width` - печатает изображение цифры в ASCII-виде для визуальной проверки.
 - `run()` - полный запуск MNIST-сценария: загрузка, обучение, оценка, разбор предсказаний и ошибок.
 
+`Examples/CNNMNIST.fs`:
+
+- `run()` - CNN-сценарий для MNIST (`Conv2D -> BatchNorm -> MaxPool -> Conv2D -> BatchNorm -> AvgPool -> Flatten -> Dense -> Softmax`) с обучением через `TrainerCNN`.
+- пример использует бинарную постановку (`цифры 0 vs 1`) для стабильной и быстрой демонстрации качества.
+- число эпох увеличено (в текущем конфиге: `8`).
+- после обучения применяется quality gate: при `test accuracy < 85%` сценарий завершится ошибкой.
+
 `Examples/TicTacToe.fs`:
 
 - `createEmptyBoard()` - создает пустое поле 3x3.
@@ -325,6 +496,8 @@ Dataset
 - `minimax board isMaximizing` - вычисляет minimax-оценку позиции.
 - `generatePositionsForPlayer player` - рекурсивно генерирует игровые позиции и оптимальные ходы для заданного игрока.
 - `createDatasetForPlayer player` - собирает датасет `(features, labels)` из сгенерированных позиций.
+- `createTrainingNetwork()` - создает стандартную архитектуру для игрового сценария.
+- `trainModel epochs onEpochEnd verbose` - библиотечный API обучения без привязки к консоли.
 - `trainAI epochs` - обучает сеть для выбора хода и выводит метрики.
 - `getNetworkMove network board` - выбирает ход сети по максимуму вероятности.
 - `makeMove board row col player` - делает ход, если клетка свободна.
@@ -343,7 +516,31 @@ Dataset
 - `testActivationsAndLosses()` - проверка совместимости разных комбинаций activation/loss.
 - `testFullTrainingCycle()` - end-to-end тест учебного цикла на синтетической классификации.
 - `testGradients()` - численная проверка градиентов (finite differences).
+- `testCNNBlock()` - проверки CNN-блока: конвертация tensor/matrix, shape-checks forward/backward и accuracy-gate `>= 85%` на синтетическом датасете для `Adam` и `Momentum`.
 - `run()` - запускает полный набор тестов и печатает итоговый статус.
+
+`Examples/HyperparameterLab.fs`:
+
+- `run()` - мини-лаборатория гиперпараметров (grid + random search по activation/lr/optimizer/batch).
+- Формирует ранжированный leaderboard с `Run ID`/`Seed` и сохраняет отчеты в `Examples/Reports/hyperparameter_leaderboard.md` и `Examples/Reports/hyperparameter_leaderboard.csv`.
+
+`Examples/RegularizationMNIST.fs`:
+
+- `run()` - серия MNIST-экспериментов с регуляризацией.
+- Поддерживает `label smoothing`, `L2 weight decay`, `mixup-style` и `cutmix-style` аугментации.
+- Сохраняет сводные отчеты в `Examples/Reports/regularization_leaderboard.md` и `Examples/Reports/regularization_leaderboard.csv`.
+
+`Examples/Interpretability.fs`:
+
+- `run()` - инструменты интерпретируемости.
+- Строит confusion matrix + per-class precision/recall/F1 для dense MNIST.
+- Генерирует saliency maps (PGM) для CNN MNIST и сохраняет артефакты в `Examples/Reports/saliency/`.
+
+`Examples/BenchmarkHarness.fs`:
+
+- `run()` - benchmark-матрица по сценариям (Iris/MNIST), оптимизаторам и layer-предустановкам.
+- Измеряет `accuracy`, `final loss`, время выполнения и приблизительную delta-памяти.
+- Экспортирует отчеты в `Examples/Reports/benchmark_report.md` и `Examples/Reports/benchmark_report.csv`.
 
 ---
 
@@ -371,7 +568,7 @@ Dataset
 - обучает сеть `784 -> 128(ReLU) -> 64(ReLU) -> 10(Softmax)`;
 - оценивает качество на тесте и показывает выборочные предсказания.
 
-В коде предусмотрен лимит выборок для более быстрого эксперимента (`train: 10000`, `test: 2000`).
+В консольном примере по-прежнему доступен запуск с лимитом выборок для ускоренных экспериментов. В мобильном приложении для `MNIST` используется полный bundled dataset.
 
 ### 3) TicTacToe (`Examples/TicTacToe.fs`)
 
@@ -385,7 +582,48 @@ Dataset
 
 Это хороший пример того, как комбинировать алгоритмическую экспертную логику (Minimax) и supervised learning.
 
-### 4) Comprehensive Tests (`Examples/Tests.fs`)
+### 3a) Mobile TicTacToe (`neuro.Mobile`)
+
+Что реализовано поверх `Examples/TicTacToe.fs`:
+
+- экран настройки и запуска обучения;
+- сохранение последней модели на устройство;
+- загрузка последней модели при открытии страницы;
+- кнопка удаления сохраненной модели;
+- защита от невалидного AI-хода: мобильное приложение выбирает лучший ход только среди свободных клеток;
+- отображение статуса готовности: когда модель еще не обучена, UI явно не предлагает начинать игру.
+
+### 3b) Mobile Iris (`neuro.Mobile`)
+
+Что реализовано поверх `Examples/Iris.fs`:
+
+- экран обучения с настройками `epochs`, `batch size`, `learning rate`;
+- прогресс обучения, время на эпоху, ETA и итоговые метрики;
+- сохранение и автозагрузка модели на устройстве;
+- ручной ввод 4 признаков цветка;
+- вывод предсказанного класса и вероятностей по всем 3 классам.
+
+### 3c) Mobile MNIST (`neuro.Mobile`)
+
+Что реализовано поверх `Examples/MNIST.fs`:
+
+- обучение dense-модели на полном bundled MNIST dataset;
+- экран с настройками обучения и жизненным циклом модели;
+- отдельный modal canvas для рисования цифры;
+- распознавание нарисованной цифры с выводом top probabilities;
+- хранение последней обученной модели в app storage.
+
+### 4) MNIST CNN (`Examples/CNNMNIST.fs`)
+
+Что делает пример:
+
+- загружает подмножество MNIST и формирует бинарный датасет (`0` vs `1`);
+- обучает компактную сверточную сеть `Conv2D -> BatchNorm -> MaxPool -> Conv2D -> BatchNorm -> AvgPool -> Flatten -> Dense -> Dense(Softmax)`;
+- обучает модель дольше базовой версии (в текущем конфиге `8` эпох);
+- показывает train/test accuracy и динамику loss;
+- проверяет quality gate: `test accuracy >= 85%`.
+
+### 5) Comprehensive Tests (`Examples/Tests.fs`)
 
 Набор тестов проверяет:
 
@@ -394,9 +632,46 @@ Dataset
 - активации и лоссы;
 - работу оптимизаторов;
 - полный цикл обучения;
-- численную проверку градиентов (сравнение analytical vs numerical).
+- численную проверку градиентов (сравнение analytical vs numerical);
+- отдельный CNN-блок (форматы данных, формы тензоров и accuracy-gate на синтетике).
 
 Этот файл можно рассматривать как «живую спецификацию» проекта.
+
+### 6) Hyperparameter Lab (`Examples/HyperparameterLab.fs`)
+
+Что делает пример:
+
+- запускает grid search + random search для Iris;
+- перебирает `learning rate`, `optimizer`, `batch size`, `hidden activation`;
+- выводит топ запусков;
+- сохраняет leaderboard в `.md` и `.csv` с полями `Run ID` и `Seed`.
+
+### 7) MNIST Regularization (`Examples/RegularizationMNIST.fs`)
+
+Что делает пример:
+
+- запускает baseline и регуляризационные абляции;
+- сравнивает `label smoothing`, `L2 weight decay`, `mixup-style`, `cutmix-style` и их комбинации;
+- строит ранжированные отчеты по качеству и затратам в `.md` и `.csv`.
+
+---
+
+### 8) Interpretability Tools (`Examples/Interpretability.fs`)
+
+Что делает пример:
+
+- считает confusion matrix и per-class метрики на MNIST;
+- сохраняет markdown-отчет по классификации (`confusion matrix`, `precision/recall/F1`);
+- обучает бинарный CNN (0 vs 1) и сохраняет saliency maps (PGM) для тестовых примеров.
+
+### 9) Benchmark Harness (`Examples/BenchmarkHarness.fs`)
+
+Что делает пример:
+
+- прогоняет матрицу экспериментов для Iris и MNIST;
+- сравнивает presets архитектур и оптимизаторов;
+- измеряет `accuracy`, `final loss`, время и delta-память;
+- экспортирует benchmark-отчеты в `.md` и `.csv` (с `Run ID` и `Seed`).
 
 ---
 
@@ -404,27 +679,58 @@ Dataset
 
 ```text
 some-code/
+  README.md
   neuro.sln
+  neuro.Core/
+    neuro.Core.fsproj
   neuro/
-    Core/
-      Matrix.fs
-      Activation.fs
     Data.fs
+    Matrix.fs
+    Activation.fs
     Layers.fs
+    ConvLayers.fs
     Losses.fs
     Optimizers.fs
     Trainer.fs
+    TrainerCNN.fs
+    Mobile/
+      TicTacToeMobile.fs
+      IrisMobile.fs
+      MnistMobile.fs
     Examples/
       Iris.fs
       MNIST.fs
+      CNNMNIST.fs
+      HyperparameterLab.fs
+      RegularizationMNIST.fs
+      Interpretability.fs
+      BenchmarkHarness.fs
       TicTacToe.fs
       Tests.fs
+      Reports/
       Data/
         Iris.csv
         mnist_train.csv
         mnist_test.csv
     Program.fs
     neuro.fsproj
+  neuro.Mobile/
+    App.cs
+    MainPage.cs
+    TicTacToePage.cs
+    IrisPage.cs
+    MnistPage.cs
+    MnistCanvasPage.cs
+    DigitCanvasDrawable.cs
+    MobileAssetLoader.cs
+    neuro.Mobile.csproj
 ```
 
+Актуальная роль каталогов:
 
+- `neuro.Core/` - библиотечная сборка общего F# ядра.
+- `neuro/` - исходники ядра, examples, mobile facade и консольный host.
+- `neuro.Mobile/` - MAUI Android-клиент.
+- `neuro/Mobile/` - F# mobile-friendly facade API, которым пользуется C# UI.
+
+Если смотреть на репозиторий как на продукт, то `neuro.Core` является центром бизнес-логики, а `neuro` и `neuro.Mobile` - двумя разными клиентами поверх одного и того же ML-движка.
