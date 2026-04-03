@@ -4,19 +4,29 @@ namespace Examples
 open System.IO
 
 module MNIST =
-   
-    let loadMnistFromCsv (filePath: string) (maxSamples: int option) =
-        printfn $"Loading MNIST data from: {filePath}"
-        
-        if not (File.Exists(filePath)) then
-            failwith $"File not found: {filePath}"
-        
-        let lines = File.ReadAllLines(filePath)
+    type MnistTrainingResult = {
+        Network: Layers.NeuralNetwork
+        Metrics: Trainer.TrainingMetrics
+        TrainAccuracy: float
+        TestAccuracy: float
+    }
+
+    type MnistPrediction = {
+        PredictedDigit: int
+        Probabilities: float[]
+        Confidence: float
+    }
+
+    let loadMnistFromLines (lines: string[]) (maxSamples: int option) (verbose: bool) =
+        let log message =
+            if verbose then
+                printfn "%s" message
+
         let dataLines = 
             match maxSamples with
             | Some limit -> 
                 let takeLimit = min limit (lines.Length - 1)
-                printfn $"  Limiting to {takeLimit} samples"
+                log $"  Limiting to {takeLimit} samples"
                 lines[1..takeLimit]
             | None -> lines[1..]
         
@@ -24,7 +34,7 @@ module MNIST =
         let nFeatures = 784
         let nClasses = 10
         
-        printfn $"  Loading {nSamples} samples..."
+        log $"  Loading {nSamples} samples..."
         
         let images = Array2D.zeroCreate nSamples nFeatures
         let labels = Array2D.zeroCreate nSamples nClasses
@@ -40,8 +50,63 @@ module MNIST =
                 images[i, j] <- pixelValue
         )
         
-        printfn $"  Loaded {nSamples} samples\n"
+        log $"  Loaded {nSamples} samples\n"
         Data.createDataset images labels
+
+    let loadMnistFromCsv (filePath: string) (maxSamples: int option) =
+        printfn $"Loading MNIST data from: {filePath}"
+        
+        if not (File.Exists(filePath)) then
+            failwith $"File not found: {filePath}"
+        
+        let lines = File.ReadAllLines(filePath)
+        loadMnistFromLines lines maxSamples true
+
+    let createTrainingNetwork () =
+        [
+            Layers.createLayer 784 128 Activation.ReLU
+            Layers.createLayer 128 64 Activation.ReLU
+            Layers.createLayer 64 10 Activation.Softmax
+        ]
+
+    let trainModel (trainSet: Data.Dataset) (testSet: Data.Dataset) (epochs: int) (batchSize: int) (learningRate: float) (onEpochEnd: (Trainer.EpochProgress -> unit) option) (verbose: bool) =
+        let network = createTrainingNetwork ()
+        let config = {
+            Trainer.defaultConfig with
+                Epochs = epochs
+                BatchSize = batchSize
+                Optimizer = Optimizers.Adam(learningRate, 0.9, 0.999, 1e-8)
+                Loss = Losses.CrossEntropy
+                Verbose = verbose
+                OnEpochEnd = onEpochEnd
+                ValidationSplit = None
+        }
+
+        let metrics, trainedNetwork = Trainer.train config network trainSet
+        let trainAccuracy = Trainer.accuracy trainedNetwork trainSet
+        let testAccuracy = Trainer.accuracy trainedNetwork testSet
+
+        {
+            Network = trainedNetwork
+            Metrics = metrics
+            TrainAccuracy = trainAccuracy
+            TestAccuracy = testAccuracy
+        }
+
+    let predictDigit (network: Layers.NeuralNetwork) (pixels: float[]) =
+        if pixels.Length <> 784 then
+            invalidArg (nameof pixels) "MNIST prediction requires exactly 784 normalized pixel values."
+
+        let input = Array2D.init 1 784 (fun _ j -> pixels[j])
+        let predictions, _ = Layers.forwardNetwork network input
+        let probabilities = Array.init 10 (fun j -> predictions[0, j])
+        let predictedDigit = probabilities |> Array.mapi (fun i v -> i, v) |> Array.maxBy snd |> fst
+
+        {
+            PredictedDigit = predictedDigit
+            Probabilities = probabilities
+            Confidence = probabilities[predictedDigit]
+        }
     
     let printDigit (image: float[]) (width: int) =
         for y in 0 .. width - 1 do
@@ -108,11 +173,7 @@ module MNIST =
             printfn ""
             
             printfn "=== NETWORK ARCHITECTURE ==="
-            let network = [
-                Layers.createLayer 784 128 Activation.ReLU
-                Layers.createLayer 128 64 Activation.ReLU
-                Layers.createLayer 64 10 Activation.Softmax
-            ]
+            let network = createTrainingNetwork ()
             
             printfn "  Input: 784 (28x28 pixels)"
             printfn "  Hidden 1: 128 neurons (ReLU)"

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="..\neuro\Core\Matrix.fs" Link="Core\Matrix.fs" />
+        <Compile Include="..\neuro\Core\Activation.fs" Link="Core\Activation.fs" />
+        <Compile Include="..\neuro\Losses.fs" Link="Losses.fs" />
+        <Compile Include="..\neuro\Layers.fs" Link="Layers.fs" />
+        <Compile Include="..\neuro\Optimizers.fs" Link="Optimizers.fs" />
+        <Compile Include="..\neuro\Data.fs" Link="Data.fs" />
+        <Compile Include="..\neuro\Trainer.fs" Link="Trainer.fs" />
+        <Compile Include="..\neuro\ConvLayers.fs" Link="ConvLayers.fs" />
+        <Compile Include="..\neuro\TrainerCNN.fs" Link="TrainerCNN.fs" />
+        <Compile Include="..\neuro\Experiments.fs" Link="Experiments.fs" />
+        <Compile Include="..\neuro\Examples\Iris.fs" Link="Examples\Iris.fs" />
+        <Compile Include="..\neuro\Examples\MNIST.fs" Link="Examples\MNIST.fs" />
+        <Compile Include="..\neuro\Examples\CNNMNIST.fs" Link="Examples\CNNMNIST.fs" />
+        <Compile Include="..\neuro\Examples\HyperparameterLab.fs" Link="Examples\HyperparameterLab.fs" />
+        <Compile Include="..\neuro\Examples\RegularizationMNIST.fs" Link="Examples\RegularizationMNIST.fs" />
+        <Compile Include="..\neuro\Examples\Interpretability.fs" Link="Examples\Interpretability.fs" />
+        <Compile Include="..\neuro\Examples\BenchmarkHarness.fs" Link="Examples\BenchmarkHarness.fs" />
+        <Compile Include="..\neuro\Examples\Tests.fs" Link="Examples\Tests.fs" />
+        <Compile Include="..\neuro\Examples\TicTacToe.fs" Link="Examples\TicTacToe.fs" />
+        <Compile Include="..\neuro\Mobile\TicTacToeMobile.fs" Link="Mobile\TicTacToeMobile.fs" />
+        <Compile Include="..\neuro\Mobile\IrisMobile.fs" Link="Mobile\IrisMobile.fs" />
+        <Compile Include="..\neuro\Mobile\MnistMobile.fs" Link="Mobile\MnistMobile.fs" />
+        <Content Include="..\neuro\Examples\Data\Iris.csv" Link="Examples\Data\Iris.csv" />
+        <Content Include="..\neuro\Examples\Data\mnist_test.csv" Link="Examples\Data\mnist_test.csv" />
+        <Content Include="..\neuro\Examples\Data\mnist_train.csv" Link="Examples\Data\mnist_train.csv" />
+    </ItemGroup>
+
+</Project>

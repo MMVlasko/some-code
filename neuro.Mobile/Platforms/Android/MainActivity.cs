@@ -1,0 +1,61 @@
+using Android.App;
+using Android.Content.PM;
+using Android.Graphics;
+using Android.OS;
+using Android.Views;
+using Android.Graphics.Drawables;
+using AndroidX.Core.View;
+using Color = Android.Graphics.Color;
+
+namespace Neuro.Mobile;
+
+[Activity(
+    Theme = "@style/Maui.SplashTheme",
+    MainLauncher = true,
+    ConfigurationChanges = ConfigChanges.ScreenSize
+        | ConfigChanges.Orientation
+        | ConfigChanges.UiMode
+        | ConfigChanges.ScreenLayout
+        | ConfigChanges.SmallestScreenSize
+        | ConfigChanges.Density)]
+public class MainActivity : MauiAppCompatActivity
+{
+    protected override void OnCreate(Bundle? savedInstanceState)
+    {
+        base.OnCreate(savedInstanceState);
+        ApplyChromeColors();
+    }
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        ApplyChromeColors();
+    }
+
+    private void ApplyChromeColors()
+    {
+        var pageColor = Color.Rgb(243, 236, 221);
+
+        if (Window is not null)
+        {
+            var decorView = Window.DecorView;
+            decorView?.SetBackgroundColor(pageColor);
+
+            if (!OperatingSystem.IsAndroidVersionAtLeast(35))
+            {
+                Window.SetStatusBarColor(pageColor);
+            }
+
+            if (decorView is not null)
+            {
+                var controller = WindowCompat.GetInsetsController(Window, decorView);
+                if (controller is not null)
+                {
+                    controller.AppearanceLightStatusBars = true;
+                }
+            }
+        }
+
+        SupportActionBar?.SetBackgroundDrawable(new ColorDrawable(pageColor));
+    }
+}

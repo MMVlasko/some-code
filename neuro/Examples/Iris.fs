@@ -5,9 +5,23 @@ open System
 open System.IO
 
 module Iris =
+    let classNames = [|"Setosa"; "Versicolor"; "Virginica"|]
+
+    type IrisTrainingResult = {
+        Network: Layers.NeuralNetwork
+        Metrics: Trainer.TrainingMetrics
+        TrainAccuracy: float
+        ValidationAccuracy: float
+        Normalization: Data.NormalizationStats
+    }
+
+    type IrisPrediction = {
+        PredictedClassIndex: int
+        PredictedClassName: string
+        Probabilities: float[]
+    }
     
-    let loadDataFromCsv (filePath: string) =
-        let lines = File.ReadAllLines(filePath)
+    let loadDataFromLines (lines: string[]) =
         let dataLines = lines[1..]
         
         let nSamples = dataLines.Length
@@ -33,6 +47,10 @@ module Iris =
         )
         
         Data.createDataset features labels
+
+    let loadDataFromCsv (filePath: string) =
+        let lines = File.ReadAllLines(filePath)
+        loadDataFromLines lines
     
     let stratifiedSplit (ratio: float) (dataset: Data.Dataset) =
         let nSamples = dataset.Features.GetLength(0)
@@ -75,6 +93,57 @@ module Iris =
         
         (Data.createDataset trainFeatures trainLabels,
          Data.createDataset valFeatures valLabels)
+
+    let createTrainingNetwork () =
+        [
+            Layers.createLayer 4 8 Activation.ReLU
+            Layers.createLayer 8 3 Activation.Softmax
+        ]
+
+    let trainModel (dataset: Data.Dataset) (epochs: int) (batchSize: int) (learningRate: float) (onEpochEnd: (Trainer.EpochProgress -> unit) option) (verbose: bool) =
+        let normalization = Data.computeNormalizationStats dataset
+        let normalizedDataset = Data.normalizeWithStats normalization dataset
+        let trainSet, valSet = stratifiedSplit 0.8 normalizedDataset
+        let network = createTrainingNetwork ()
+
+        let config = {
+            Trainer.defaultConfig with
+                Epochs = epochs
+                BatchSize = batchSize
+                Optimizer = Optimizers.Adam(learningRate, 0.9, 0.999, 1e-8)
+                Loss = Losses.CrossEntropy
+                Verbose = verbose
+                OnEpochEnd = onEpochEnd
+                ValidationSplit = None
+        }
+
+        let metrics, trainedNetwork = Trainer.train config network trainSet
+        let trainAccuracy = Trainer.accuracy trainedNetwork trainSet
+        let validationAccuracy = Trainer.accuracy trainedNetwork valSet
+
+        {
+            Network = trainedNetwork
+            Metrics = metrics
+            TrainAccuracy = trainAccuracy
+            ValidationAccuracy = validationAccuracy
+            Normalization = normalization
+        }
+
+    let predictSample (network: Layers.NeuralNetwork) (normalization: Data.NormalizationStats) (features: float[]) =
+        if features.Length <> 4 then
+            invalidArg (nameof features) "Iris prediction requires exactly 4 features."
+
+        let normalizedFeatures = Data.normalizeFeatureVector normalization features
+        let input = Array2D.init 1 4 (fun _ j -> normalizedFeatures[j])
+        let predictions, _ = Layers.forwardNetwork network input
+        let probabilities = Array.init 3 (fun j -> predictions[0, j])
+        let predictedClassIndex = probabilities |> Array.mapi (fun i v -> i, v) |> Array.maxBy snd |> fst
+
+        {
+            PredictedClassIndex = predictedClassIndex
+            PredictedClassName = classNames[predictedClassIndex]
+            Probabilities = probabilities
+        }
     
     let run() =
         printfn "\n========================================"
@@ -106,8 +175,8 @@ module Iris =
             printfn $"  Virginica: {classCountsFull[2]}"
             printfn ""
             
-            let normalizedDataset = Data.normalize fullDataset
-            
+            let normalization = Data.computeNormalizationStats fullDataset
+            let normalizedDataset = Data.normalizeWithStats normalization fullDataset
             let trainSet, valSet = stratifiedSplit 0.8 normalizedDataset
             
             printfn "=== SPLIT INFO ==="
@@ -144,10 +213,7 @@ module Iris =
                 printfn $"  Sample {i}: [{valSet.Features[i, 0]:N2}, {valSet.Features[i, 1]:N2}, {valSet.Features[i, 2]:N2}, {valSet.Features[i, 3]:N2}] -> {className}"
             printfn ""
             
-            let network = [
-                Layers.createLayer 4 8 Activation.ReLU
-                Layers.createLayer 8 3 Activation.Softmax
-            ]
+            let network = createTrainingNetwork ()
             
             printfn "=== NETWORK ARCHITECTURE ==="
             printfn "  Input: 4 features"
@@ -193,7 +259,6 @@ module Iris =
             let valPredictions, _ = Layers.forwardNetwork trainedNetwork valSet.Features
             
             printfn "\n=== VALIDATION PREDICTIONS (first 10 samples) ==="
-            let classNames = [|"Setosa"; "Versicolor"; "Virginica"|]
             let mutable correct = 0
             for i in 0 .. min 9 (valSet.Features.GetLength(0) - 1) do
                 let predClass = 
